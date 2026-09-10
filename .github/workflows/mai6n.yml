@@ -86,12 +86,35 @@ jobs:
           p.write_text(text)
           PY
 
+          # Android's accessibility-service android:description attribute is a
+          # resource reference. Replace the invalid inline literal with a
+          # proper @string resource and provide the resource itself.
+          mkdir -p android/src/main/res/values
+          cat > android/src/main/res/values/strings.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="potato_accessibility_service_description">POTATO assistive service (reserved; no cross-app control)</string>
+          </resources>
+          EOF
+
+          cat > android/src/main/res/xml/accessibility_service_config.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+              android:accessibilityEventTypes="typeWindowStateChanged"
+              android:accessibilityFeedbackType="feedbackGeneric"
+              android:canRetrieveWindowContent="false"
+              android:description="@string/potato_accessibility_service_description"
+              android:notificationTimeout="250" />
+          EOF
+
           echo '=== lifecycle dependencies ==='
           grep -n 'lifecycle' android/build.gradle.kts
           echo '=== main application network settings ==='
           grep -n 'usesCleartextTraffic\|networkSecurityConfig' android/src/main/AndroidManifest.xml
           echo '=== debug manifest ==='
           cat android/src/debug/AndroidManifest.xml
+          echo '=== accessibility service config ==='
+          cat android/src/main/res/xml/accessibility_service_config.xml
 
       - name: Backend regression tests
         shell: bash
