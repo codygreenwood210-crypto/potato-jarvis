@@ -47,6 +47,19 @@ jobs:
           sed -i 's/VERSION = "5.1"/VERSION = "5.2"/' "$NEW/backend/main.py"
           sed -i 's/== "5.1"/== "5.2"/' "$NEW/backend/tests/test_main.py"
 
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("build-src/POTATO-JARVIS-V5.2/android/build.gradle.kts")
+          s = p.read_text()
+          anchor = "    buildFeatures {\n        compose = true\n        buildConfig = true\n    }\n"
+          replacement = "    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n\n    kotlinOptions {\n        jvmTarget = \"17\"\n    }\n\n" + anchor
+          if "sourceCompatibility = JavaVersion.VERSION_17" not in s:
+              if anchor not in s:
+                  raise SystemExit("buildFeatures anchor not found")
+              s = s.replace(anchor, replacement, 1)
+          p.write_text(s)
+          PY
+
           cat > "$NEW/android/src/debug/AndroidManifest.xml" <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"
               xmlns:tools="http://schemas.android.com/tools">
@@ -77,6 +90,9 @@ jobs:
           grep -q 'VERSION = "5.2"' backend/main.py
           grep -q 'lifecycle-viewmodel-compose:2.9.2' android/build.gradle.kts
           grep -q 'lifecycle-runtime-compose:2.9.2' android/build.gradle.kts
+          grep -q 'sourceCompatibility = JavaVersion.VERSION_17' android/build.gradle.kts
+          grep -q 'targetCompatibility = JavaVersion.VERSION_17' android/build.gradle.kts
+          grep -q 'jvmTarget = "17"' android/build.gradle.kts
           grep -q 'tools:replace="android:usesCleartextTraffic"' android/src/debug/AndroidManifest.xml
           grep -q 'android:description="@string/potato_accessibility_service_description"' android/src/main/res/xml/accessibility_service_config.xml
           grep -q 'name="potato_accessibility_service_description"' android/src/main/res/values/strings.xml
