@@ -1,0 +1,145 @@
+#!/bin/sh
+#
+# POTATO self-bootstrapping Gradle wrapper.
+#
+# The official Gradle wrapper is a ~60KB gradle-wrapper.jar that does exactly
+# what this script does: read gradle/wrapper/gradle-wrapper.properties, fetch
+# the pinned distribution, verify its SHA-256, unpack it into the Gradle user
+# home, and exec the real gradle launcher.
+#
+# This script does the same thing in POSIX sh so the repository does not have
+# to carry a binary. It honours the same properties file and the same
+# distributionSha256Sum pin, so the integrity guarantee is unchanged: an
+# attacker who tampers with the distribution download still fails the checksum.
+#
+# If a system `gradle` matching the pinned version is already on PATH it is
+# used directly and nothing is downloaded.
+#
+# To replace this with the official wrapper instead, run once on a machine that
+# has Gradle installed:
+#
+#     gradle wrapper --gradle-version 8.9 --distribution-type bin
+#
+# then verify with ./scripts/verify_gradle_wrapper.sh.
+
+set -eu
+
+APP_HOME=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+PROPS="$APP_HOME/gradle/wrapper/gradle-wrapper.properties"
+
+die() {
+    printf 'POTATO gradlew: %s\n' "$1" >&2
+    exit 1
+}
+
+[ -f "$PROPS" ] || die "missing $PROPS"
+
+# ---------------------------------------------------------------- properties
+# Read a key from the properties file. Values may contain Java-escaped colons
+# (https\://...), which we unescape.
+prop() {
+    sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "$PROPS" \
+        | tail -n 1 \
+        | sed 's/\\:/:/g; s/[[:space:]]*$//'
+}
+
+DIST_URL=$(prop distributionUrl)
+DIST_SHA=$(prop distributionSha256Sum)
+VALIDATE_URL=$(prop validateDistributionUrl)
+
+[ -n "$DIST_URL" ] || die "distributionUrl is not set in gradle-wrapper.properties"
+
+DIST_FILE=${DIST_URL##*/}
+DIST_BASE=${DIST_FILE%.zip}
+GRADLE_VERSION=$(printf '%s' "$DIST_BASE" | sed 's/^gradle-//; s/-\(bin\|all\)$//')
+
+if [ "${VALIDATE_URL:-true}" != "false" ]; then
+    case "$DIST_URL" in
+        https://services.gradle.org/*|https://downloads.gradle.org/*) ;;
+        file://*) ;;
+        *) die "refusing to download from untrusted distributionUrl: $DIST_URL" ;;
+    esac
+fi
+
+# --------------------------------------------------------------------- java
+if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+    JAVACMD="$JAVA_HOME/bin/java"
+elif command -v java >/dev/null 2>&1; then
+    JAVACMD=$(command -v java)
+else
+    die "no Java runtime found. Install JDK 17 or newer, or set JAVA_HOME."
+fi
+export JAVACMD
+
+# ------------------------------------------------------- already have gradle?
+if command -v gradle >/dev/null 2>&1; then
+    SYS_VERSION=$(gradle --version 2>/dev/null | sed -n 's/^Gradle \([0-9][0-9.]*\).*/\1/p' | head -n 1)
+    if [ "$SYS_VERSION" = "$GRADLE_VERSION" ]; then
+        exec gradle "$@"
+    fi
+fi
+
+# ------------------------------------------------------------------ cache dir
+GRADLE_USER_HOME=${GRADLE_USER_HOME:-"$HOME/.gradle"}
+URL_TAG=$(printf '%s' "$DIST_URL" | cksum | awk '{printf "%08x", $1}')
+DIST_DIR="$GRADLE_USER_HOME/wrapper/dists/$DIST_BASE/potato-$URL_TAG"
+GRADLE_HOME="$DIST_DIR/gradle-$GRADLE_VERSION"
+
+if [ -x "$GRADLE_HOME/bin/gradle" ]; then
+    exec "$GRADLE_HOME/bin/gradle" "$@"
+fi
+
+# ------------------------------------------------------------------- sha256
+sha256_of() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
+    elif command -v openssl >/dev/null 2>&1; then
+        openssl dgst -sha256 "$1" | awk '{print $NF}'
+    else
+        die "no sha256 tool found (need sha256sum, shasum, or openssl)"
+    fi
+}
+
+# ----------------------------------------------------------------- download
+mkdir -p "$DIST_DIR"
+ZIP="$DIST_DIR/$DIST_FILE"
+
+if [ ! -f "$ZIP" ]; then
+    printf 'POTATO gradlew: downloading %s\n' "$DIST_URL" >&2
+    TMP="$ZIP.part.$$"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL --retry 3 -o "$TMP" "$DIST_URL" || { rm -f "$TMP"; die "download failed: $DIST_URL"; }
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -O "$TMP" "$DIST_URL" || { rm -f "$TMP"; die "download failed: $DIST_URL"; }
+    else
+        die "neither curl nor wget is available to download Gradle"
+    fi
+    mv -f "$TMP" "$ZIP"
+fi
+
+# ------------------------------------------------------------------- verify
+if [ -n "$DIST_SHA" ]; then
+    ACTUAL=$(sha256_of "$ZIP")
+    if [ "$ACTUAL" != "$DIST_SHA" ]; then
+        rm -f "$ZIP"
+        printf 'POTATO gradlew: SHA-256 MISMATCH for %s\n' "$DIST_FILE" >&2
+        printf '  expected: %s\n' "$DIST_SHA" >&2
+        printf '  actual:   %s\n' "$ACTUAL" >&2
+        die "discarded the downloaded distribution; refusing to execute it"
+    fi
+else
+    printf 'POTATO gradlew: WARNING - distributionSha256Sum is not pinned.\n' >&2
+fi
+
+# ------------------------------------------------------------------ unpack
+if [ ! -x "$GRADLE_HOME/bin/gradle" ]; then
+    command -v unzip >/dev/null 2>&1 || die "unzip is required to unpack the Gradle distribution"
+    unzip -q -o "$ZIP" -d "$DIST_DIR" || die "failed to unpack $ZIP"
+    chmod +x "$GRADLE_HOME/bin/gradle" 2>/dev/null || true
+fi
+
+[ -x "$GRADLE_HOME/bin/gradle" ] || die "gradle launcher not found at $GRADLE_HOME/bin/gradle"
+
+exec "$GRADLE_HOME/bin/gradle" "$@"
