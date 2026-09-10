@@ -1,4 +1,4 @@
-name: Unpack and build
+name: Auto-fix and build
 
 on:
   workflow_dispatch:
@@ -6,23 +6,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: lc292
-            lifecycle: "2.9.2"
-            agp: "8.7.3"
-            sdk: "35"
-          - name: lc294
-            lifecycle: "2.9.4"
-            agp: "8.7.3"
-            sdk: "35"
-          - name: lc2100
-            lifecycle: "2.10.0"
-            agp: "8.9.1"
-            sdk: "36"
-    name: lifecycle ${{ matrix.lifecycle }} (AGP ${{ matrix.agp }} / SDK ${{ matrix.sdk }})
     steps:
       - uses: actions/checkout@v4
 
@@ -31,49 +14,101 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Unpack the archive
+      - name: Unpack archive
+        shell: bash
         run: |
-          set -eu
-          ZIP=$(ls *.zip | head -1)
-          unzip -q "$ZIP" -d src
+          set -euo pipefail
+          unzip -q "$(ls *.zip | head -1)" -d src
           ROOT=$(dirname "$(find src -name settings.gradle.kts -print -quit)")
           echo "PROJECT_ROOT=$ROOT" >> $GITHUB_ENV
+          chmod +x "$ROOT/gradlew" "$ROOT"/scripts/*.sh "$ROOT"/backend/run.sh
 
-      - name: Patch versions
-        working-directory: ${{ env.PROJECT_ROOT }}
-        run: |
-          chmod +x gradlew scripts/*.sh backend/run.sh
-          sed -i 's/id("com.android.application") version "[^"]*"/id("com.android.application") version "${{ matrix.agp }}"/' build.gradle.kts
-          sed -i 's/^\( *\)compileSdk = .*/\1compileSdk = ${{ matrix.sdk }}/' android/build.gradle.kts
-          sed -i 's/^\( *\)targetSdk = .*/\1targetSdk = ${{ matrix.sdk }}/' android/build.gradle.kts
-          sed -i 's/\(androidx\.lifecycle:[a-z-]*\):2\.9\.7/\1:${{ matrix.lifecycle }}/g' android/build.gradle.kts
-          echo "Patched dependency lines:"
-          grep -n 'lifecycle' android/build.gradle.kts
-
-      - name: Assemble debug APK
+      - name: Auto-resolve versions and build
         id: build
         continue-on-error: true
+        shell: bash
         working-directory: ${{ env.PROJECT_ROOT }}
         run: |
-          set -o pipefail
-          ./gradlew :android:assembleDebug --no-daemon 2>&1 | tee build.log
+          set -uo pipefail
 
-      - name: Errors
-        if: steps.build.outcome == 'failure'
-        working-directory: ${{ env.PROJECT_ROOT }}
-        run: |
-          echo "===== FAILED: lifecycle ${{ matrix.lifecycle }} ====="
-          grep -E 'Could not find|requires .*(compile against|Android Gradle plugin)|Unresolved reference|e: |error:' build.log | sort -u | head -30
-          echo "===== end ====="
+          curl -s https://dl.google.com/dl/android/maven2/androidx/lifecycle/group-index.xml -o /tmp/idx.xml
+          for a in lifecycle-runtime-compose lifecycle-viewmodel-compose; do
+            grep -o "<$a versions=\"[^\"]*\"" /tmp/idx.xml \
+              | sed "s/.*versions=\"//" | tr "," "\n" \
+              | grep -vE "alpha|beta|rc|dev" | sort > "/tmp/$a.srt"
+          done
+          comm -12 /tmp/lifecycle-runtime-compose.srt /tmp/lifecycle-viewmodel-compose.srt \
+            | sort -V -r > /tmp/cands.txt
 
-      - name: Success
-        if: steps.build.outcome == 'success'
-        run: echo "### WORKS -> lifecycle ${{ matrix.lifecycle }}, AGP ${{ matrix.agp }}, SDK ${{ matrix.sdk }}" >> $GITHUB_STEP_SUMMARY
+          echo "::group::Stable versions in BOTH artifacts"
+          cat /tmp/cands.txt
+          echo "::endgroup::"
+
+          SDK=$(grep -oE 'compileSdk *= *[0-9]+' android/build.gradle.kts | grep -oE '[0-9]+' | head -1)
+          AGP=$(grep -oE 'com.android.application"\) version "[0-9.]+' build.gradle.kts | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "Starting point: compileSdk=$SDK agp=$AGP"
+
+          apply() {
+            sed -i "s/\(androidx\.lifecycle:[a-z-]*\):[0-9][0-9a-zA-Z.+-]*/\1:$1/g" android/build.gradle.kts
+            sed -i "s/^\( *\)compileSdk = .*/\1compileSdk = $2/" android/build.gradle.kts
+            sed -i "s/^\( *\)targetSdk = .*/\1targetSdk = $2/" android/build.gradle.kts
+            sed -i "s/id(\"com.android.application\") version \"[^\"]*\"/id(\"com.android.application\") version \"$3\"/" build.gradle.kts
+          }
+
+          ATTEMPT=0
+          echo "| attempt | lifecycle | compileSdk | AGP | result |" > /tmp/report.md
+          echo "|---|---|---|---|---|" >> /tmp/report.md
+
+          for LC in $(head -4 /tmp/cands.txt); do
+            for RETRY in 1 2; do
+              ATTEMPT=$((ATTEMPT+1))
+              echo "=============== attempt $ATTEMPT: lifecycle=$LC sdk=$SDK agp=$AGP ==============="
+              apply "$LC" "$SDK" "$AGP"
+              ./gradlew :android:assembleDebug --no-daemon 2>&1 | tee /tmp/b.log | tail -25
+              if [ "${PIPESTATUS[0]}" = "0" ]; then
+                echo "| $ATTEMPT | $LC | $SDK | $AGP | SUCCESS |" >> /tmp/report.md
+                echo "WORKING_COMBO=lifecycle=$LC compileSdk=$SDK agp=$AGP" | tee -a $GITHUB_ENV
+                cp /tmp/report.md $GITHUB_STEP_SUMMARY
+                exit 0
+              fi
+
+              NEED_SDK=$(grep -oE 'compile against version [0-9]+' /tmp/b.log | grep -oE '[0-9]+' | sort -n | tail -1)
+              NEED_AGP=$(grep -oE 'requires Android Gradle plugin [0-9]+\.[0-9]+\.[0-9]+' /tmp/b.log | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tail -1)
+              REASON=$(grep -E 'Could not find|requires |^e: |error:' /tmp/b.log | head -1 | cut -c1-90)
+              echo "| $ATTEMPT | $LC | $SDK | $AGP | ${REASON:-failed} |" >> /tmp/report.md
+
+              CHANGED=0
+              if [ -n "$NEED_SDK" ] && [ "$NEED_SDK" != "$SDK" ]; then SDK=$NEED_SDK; CHANGED=1; fi
+              if [ -n "$NEED_AGP" ] && [ "$NEED_AGP" != "$AGP" ]; then AGP=$NEED_AGP; CHANGED=1; fi
+              cp /tmp/b.log "/tmp/attempt-$ATTEMPT.log"
+              [ "$CHANGED" = "0" ] && break
+              echo ">>> toolchain says it needs compileSdk=$SDK agp=$AGP - retrying"
+            done
+          done
+
+          echo "### No combination built. Attempts:" > $GITHUB_STEP_SUMMARY
+          cat /tmp/report.md >> $GITHUB_STEP_SUMMARY
+          echo "================ LAST FAILURE IN FULL ================"
+          sed -n '/FAILURE:/,$p' /tmp/b.log | head -120
+          exit 1
+
+      - name: Attempt report
+        if: always()
+        shell: bash
+        run: cat /tmp/report.md || true
+
+      - name: Upload all logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: /tmp/attempt-*.log
+          if-no-files-found: warn
 
       - name: Upload APK
         if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: apk-${{ matrix.name }}
+          name: potato-debug-apk
           path: ${{ env.PROJECT_ROOT }}/android/build/outputs/apk/debug/*.apk
           if-no-files-found: error
