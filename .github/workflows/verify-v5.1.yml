@@ -66,6 +66,16 @@ jobs:
           chmod +x gradlew scripts/*.sh backend/run.sh
           ./scripts/verify_gradle_wrapper.sh
 
+      - name: Apply confirmed Lifecycle dependency correction for verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT"
+          sed -i 's/androidx.lifecycle:lifecycle-viewmodel-compose:2.9.7/androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2/' android/build.gradle.kts
+          sed -i 's/androidx.lifecycle:lifecycle-runtime-compose:2.9.7/androidx.lifecycle:lifecycle-runtime-compose:2.9.2/' android/build.gradle.kts
+          ! grep -q 'androidx.lifecycle:.*:2.9.7' android/build.gradle.kts
+          grep -n 'androidx.lifecycle:' android/build.gradle.kts
+
       - name: Android compile and lint
         shell: bash
         run: |
