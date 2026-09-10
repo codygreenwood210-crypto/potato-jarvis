@@ -1,0 +1,179 @@
+name: Verify POTATO V5.4
+
+on:
+  push:
+    branches: [verify-v5.1]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Download verified V5.3 source artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf input build-src
+          mkdir -p input build-src
+          gh run download 34466320565 -n POTATO-JARVIS-FINAL-V5.3 -D input
+          test -s input/POTATO-JARVIS-FINAL-V5.3.zip
+          unzip -q input/POTATO-JARVIS-FINAL-V5.3.zip -d build-src
+          test -d build-src/POTATO-JARVIS-V5.3
+          mv build-src/POTATO-JARVIS-V5.3 build-src/POTATO-JARVIS-V5.4
+          echo "PROJECT_ROOT=build-src/POTATO-JARVIS-V5.4" >> "$GITHUB_ENV"
+
+      - name: Create V5.4 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          root = Path('build-src/POTATO-JARVIS-V5.4')
+
+          # Version advance.
+          (root / 'VERSION').write_text('5.4\n')
+          for rel in ['settings.gradle.kts','README.md','docs/API.md','backend/main.py','backend/tests/test_main.py']:
+              p = root / rel
+              s = p.read_text().replace('V5.3', 'V5.4').replace('5.3', '5.4')
+              p.write_text(s)
+          p = root / 'android/build.gradle.kts'
+          s = p.read_text().replace('versionCode = 53', 'versionCode = 54').replace('versionName = "5.3"', 'versionName = "5.4"').replace('\\"5.3\\"', '\\"5.4\\"')
+          p.write_text(s)
+
+          # Implement a narrow, user-facing accessibility context feature.
+          p = root / 'android/src/main/java/com/potato/jarvis/accessibility/PotatoAccessibilityService.kt'
+          p.write_text('''package com.potato.jarvis.accessibility\n\nimport android.accessibilityservice.AccessibilityService\nimport android.view.accessibility.AccessibilityEvent\n\n/**\n * Optional, user-enabled foreground-app context.\n *\n * POTATO stores only the package name supplied by TYPE_WINDOW_STATE_CHANGED.\n * It does not retrieve window content, inspect text, click controls, type into\n * other apps, or perform gestures. The user must explicitly enable this service\n * from Android Accessibility settings after reading the in-app disclosure.\n */\nclass PotatoAccessibilityService : AccessibilityService() {\n    override fun onAccessibilityEvent(event: AccessibilityEvent?) {\n        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return\n        val packageName = event.packageName?.toString()?.trim().orEmpty()\n        if (packageName.isBlank()) return\n        getSharedPreferences(PREFS, MODE_PRIVATE)\n            .edit()\n            .putString(KEY_FOREGROUND_PACKAGE, packageName)\n            .apply()\n    }\n\n    override fun onInterrupt() = Unit\n\n    companion object {\n        const val PREFS = "potato_accessibility_context"\n        const val KEY_FOREGROUND_PACKAGE = "foreground_package"\n    }\n}\n''')
+
+          p = root / 'android/src/main/res/values/strings.xml'
+          p.write_text('''<resources>\n    <string name="potato_accessibility_service_description">Optional foreground-app context. POTATO sees only the current app package name; it cannot read screen text, click controls, type, or perform gestures.</string>\n</resources>\n''')
+
+          # Add prominent disclosure + affirmative consent before opening Accessibility settings.
+          p = root / 'android/src/main/java/com/potato/jarvis/MainActivity.kt'
+          s = p.read_text()
+          if 'import androidx.compose.material3.Checkbox\n' not in s:
+              s = s.replace('import androidx.compose.material3.Card\n', 'import androidx.compose.material3.Card\nimport androidx.compose.material3.Checkbox\n', 1)
+          if 'import com.potato.jarvis.accessibility.PotatoAccessibilityService\n' not in s:
+              s = s.replace('import com.potato.jarvis.core.ChatMessage\n', 'import com.potato.jarvis.accessibility.PotatoAccessibilityService\nimport com.potato.jarvis.core.ChatMessage\n', 1)
+
+          anchor = '    var profile by remember(state.personality) { mutableStateOf(state.personality) }\n'
+          replacement = '''    var profile by remember(state.personality) { mutableStateOf(state.personality) }\n    var accessibilityConsent by remember { mutableStateOf(false) }\n    var foregroundPackage by remember {\n        mutableStateOf(\n            context.getSharedPreferences(PotatoAccessibilityService.PREFS, Context.MODE_PRIVATE)\n                .getString(PotatoAccessibilityService.KEY_FOREGROUND_PACKAGE, null)\n                .orEmpty()\n        )\n    }\n'''
+          if anchor not in s:
+              raise SystemExit('Settings state anchor not found')
+          s = s.replace(anchor, replacement, 1)
+
+          old = '''        Surface(tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {\n            Column(Modifier.padding(12.dp)) {\n                Text("Device control", style = MaterialTheme.typography.titleMedium)\n                Text("Cross-app computer control is intentionally disabled. POTATO only supports explicitly configured server-side device actions with approval.")\n            }\n        }\n'''
+          new = '''        Surface(tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {\n            Column(Modifier.padding(12.dp)) {\n                Text("Optional accessibility context", style = MaterialTheme.typography.titleMedium)\n                Text(\n                    "If you enable POTATO in Android Accessibility settings, POTATO receives only the foreground app package name when the active window changes. " +\n                        "It does not read screen text, inspect passwords or financial information, click controls, type, perform gestures, change settings, or control other apps.",\n                    style = MaterialTheme.typography.bodySmall,\n                    modifier = Modifier.padding(top = 4.dp),\n                )\n                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {\n                    Checkbox(checked = accessibilityConsent, onCheckedChange = { accessibilityConsent = it })\n                    Text("I understand and choose to enable this optional context.", modifier = Modifier.padding(start = 6.dp))\n                }\n                Button(\n                    onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },\n                    enabled = accessibilityConsent,\n                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),\n                ) { Text("Open Accessibility settings") }\n                OutlinedButton(\n                    onClick = {\n                        foregroundPackage = context\n                            .getSharedPreferences(PotatoAccessibilityService.PREFS, Context.MODE_PRIVATE)\n                            .getString(PotatoAccessibilityService.KEY_FOREGROUND_PACKAGE, null)\n                            .orEmpty()\n                    },\n                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),\n                ) { Text("Refresh foreground-app context") }\n                Text(\n                    if (foregroundPackage.isBlank()) "No foreground-app context recorded." else "Last foreground app: $foregroundPackage",\n                    style = MaterialTheme.typography.bodySmall,\n                    modifier = Modifier.padding(top = 6.dp),\n                )\n                Text(\n                    "Cross-app computer control remains disabled. Server-side device actions still require the existing approval pipeline.",\n                    style = MaterialTheme.typography.bodySmall,\n                    modifier = Modifier.padding(top = 8.dp),\n                )\n            }\n        }\n'''
+          if old not in s:
+              raise SystemExit('Device control panel anchor not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          (root / 'CHANGES_V5.4.md').write_text('''# POTATO V5.4 changes\n\n- Keeps every V5.3 feature.\n- Converts the reserved AccessibilityService into a narrow foreground-app context feature.\n- Accessibility stores only the current package name from window-state changes.\n- Keeps canRetrieveWindowContent=false; no screen scraping, clicking, typing, gestures, or cross-app control.\n- Adds a prominent in-app accessibility disclosure and affirmative consent before opening Android Accessibility settings.\n- Updates the accessibility service description to match actual behavior.\n- Retains all V5.3 build, lint, backup, camera, auth, and security fixes.\n''')
+          PY
+
+      - name: Verify V5.4 source state
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT"
+          test "$(tr -d '\r\n' < VERSION)" = "5.4"
+          grep -q 'versionCode = 54' android/build.gradle.kts
+          grep -q 'versionName = "5.4"' android/build.gradle.kts
+          grep -q 'VERSION = "5.4"' backend/main.py
+          grep -q 'canRetrieveWindowContent="false"' android/src/main/res/xml/accessibility_service_config.xml
+          grep -q 'foreground_package' android/src/main/java/com/potato/jarvis/accessibility/PotatoAccessibilityService.kt
+          grep -q 'I understand and choose to enable this optional context' android/src/main/java/com/potato/jarvis/MainActivity.kt
+          grep -q 'Open Accessibility settings' android/src/main/java/com/potato/jarvis/MainActivity.kt
+          grep -q 'cannot read screen text' android/src/main/res/values/strings.xml
+
+      - name: Backend dependencies
+        run: python -m pip install -r "$PROJECT_ROOT/backend/requirements.txt"
+
+      - name: Backend compile and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT"
+          python -m compileall -q backend
+          python -m pytest -q backend/tests
+
+      - name: Verify Gradle bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT"
+          chmod +x gradlew scripts/*.sh backend/run.sh
+          ./scripts/verify_gradle_wrapper.sh
+
+      - name: Verify Android resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT"
+          ./gradlew :android:processDebugResources --no-daemon
+
+      - name: Android assembleDebug
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT"
+          ./gradlew :android:assembleDebug --no-daemon
+          test -s android/build/outputs/apk/debug/android-debug.apk
+          sha256sum android/build/outputs/apk/debug/android-debug.apk
+
+      - name: Android lint
+        shell: bash
+        env:
+          LINT_PRINT_STACKTRACE: 'true'
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT"
+          ./gradlew :android:lint --no-daemon
+
+      - name: Package complete V5.4 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build-src
+          zip -qr POTATO-JARVIS-FINAL-V5.4.zip POTATO-JARVIS-V5.4
+          sha256sum POTATO-JARVIS-FINAL-V5.4.zip
+
+      - name: Upload V5.4 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: potato-v5.4-debug-apk
+          path: ${{ env.PROJECT_ROOT }}/android/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload complete V5.4 source
+        uses: actions/upload-artifact@v4
+        with:
+          name: POTATO-JARVIS-FINAL-V5.4
+          path: build-src/POTATO-JARVIS-FINAL-V5.4.zip
+          if-no-files-found: error
+
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: potato-v5.4-lint-reports
+          path: |
+            ${{ env.PROJECT_ROOT }}/android/build/reports/
+            ${{ env.PROJECT_ROOT }}/android/build/intermediates/lint*/
+          if-no-files-found: ignore
