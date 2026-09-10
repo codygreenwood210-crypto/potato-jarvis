@@ -1,9 +1,6 @@
 name: POTATO V5.2 deterministic APK build
 
 on:
-  push:
-    branches:
-      - nova-v5-2-apk-build
   workflow_dispatch:
 
 permissions:
@@ -22,118 +19,24 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Reconstruct clean build tree and apply verified V5.2 build fixes
+      - name: Reconstruct V5.2 build tree
         shell: bash
         run: |
           set -euo pipefail
           rm -rf src
           mkdir src
           unzip -q POTATO-JARVIS-V5.1-BUILDABLE.zip -d src
-
           ROOT="$(dirname "$(find src -name settings.gradle.kts -print -quit)")"
           test -n "$ROOT"
+          cp -a "$GITHUB_WORKSPACE/v5.2-overrides/." "$ROOT/"
           echo "ROOT=$ROOT" >> "$GITHUB_ENV"
-          echo "Project root: $ROOT"
-
           cd "$ROOT"
           chmod +x gradlew scripts/*.sh backend/run.sh
+          echo "Project root: $ROOT"
+          echo "Version: $(cat VERSION)"
+          grep -n 'versionCode\|versionName\|lifecycle\|compileOptions' android/build.gradle.kts
 
-          # Verified dependency repair: lifecycle 2.9.7 does not exist; use 2.10.0.
-          sed -i 's|lifecycle-viewmodel-compose:[^"]*|lifecycle-viewmodel-compose:2.10.0|' android/build.gradle.kts
-          sed -i 's|lifecycle-runtime-compose:[^"]*|lifecycle-runtime-compose:2.10.0|' android/build.gradle.kts
-
-          # Align Java bytecode target with Kotlin/JDK 17. The previous run
-          # proved Java was defaulting to 1.8 while Kotlin compiled for 17.
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('android/build.gradle.kts')
-          text = p.read_text()
-          if 'compileOptions {' not in text:
-              needle = '''    buildFeatures {\n        compose = true\n        buildConfig = true\n    }\n'''
-              replacement = '''    buildFeatures {\n        compose = true\n        buildConfig = true\n    }\n\n    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n'''
-              if needle not in text:
-                  raise SystemExit('Expected buildFeatures block not found')
-              text = text.replace(needle, replacement, 1)
-          p.write_text(text)
-          PY
-
-          # Remove the conflicting debug manifest cleartext declaration.
-          cat > android/src/debug/AndroidManifest.xml <<'EOF'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application />
-          </manifest>
-          EOF
-
-          # Use source-set Network Security Config so release stays HTTPS-only
-          # while the debug build can reach the local development backend.
-          mkdir -p android/src/main/res/xml android/src/debug/res/xml
-          cat > android/src/main/res/xml/network_security_config.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <network-security-config>
-              <base-config cleartextTrafficPermitted="false">
-                  <trust-anchors>
-                      <certificates src="system" />
-                  </trust-anchors>
-              </base-config>
-          </network-security-config>
-          EOF
-
-          cat > android/src/debug/res/xml/network_security_config.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <network-security-config>
-              <base-config cleartextTrafficPermitted="true">
-                  <trust-anchors>
-                      <certificates src="system" />
-                  </trust-anchors>
-              </base-config>
-          </network-security-config>
-          EOF
-
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('android/src/main/AndroidManifest.xml')
-          text = p.read_text()
-          if 'android:networkSecurityConfig=' not in text:
-              marker = 'android:usesCleartextTraffic="false"'
-              if marker not in text:
-                  raise SystemExit('Expected usesCleartextTraffic=false marker not found')
-              text = text.replace(marker, marker + '\n        android:networkSecurityConfig="@xml/network_security_config"', 1)
-          p.write_text(text)
-          PY
-
-          # Android's accessibility-service android:description attribute is a
-          # resource reference. Replace the invalid inline literal with a
-          # proper @string resource and provide the resource itself.
-          mkdir -p android/src/main/res/values
-          cat > android/src/main/res/values/strings.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <string name="potato_accessibility_service_description">POTATO assistive service (reserved; no cross-app control)</string>
-          </resources>
-          EOF
-
-          cat > android/src/main/res/xml/accessibility_service_config.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-              android:accessibilityEventTypes="typeWindowStateChanged"
-              android:accessibilityFeedbackType="feedbackGeneric"
-              android:canRetrieveWindowContent="false"
-              android:description="@string/potato_accessibility_service_description"
-              android:notificationTimeout="250" />
-          EOF
-
-          echo '=== lifecycle dependencies ==='
-          grep -n 'lifecycle' android/build.gradle.kts
-          echo '=== Java target ==='
-          grep -n -A3 'compileOptions' android/build.gradle.kts
-          echo '=== main application network settings ==='
-          grep -n 'usesCleartextTraffic\|networkSecurityConfig' android/src/main/AndroidManifest.xml
-          echo '=== debug manifest ==='
-          cat android/src/debug/AndroidManifest.xml
-          echo '=== accessibility service config ==='
-          cat android/src/main/res/xml/accessibility_service_config.xml
-
-      - name: Backend regression tests
+      - name: Baseline backend regression tests
         shell: bash
         run: |
           set -euo pipefail
