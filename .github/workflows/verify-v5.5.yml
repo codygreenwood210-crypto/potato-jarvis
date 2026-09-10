@@ -49,12 +49,17 @@ jobs:
           echo "GRADLE_813_DIST_SHA=$DIST_SHA" >> "$GITHUB_ENV"
           echo "GRADLE_813_JAR_SHA=$JAR_SHA" >> "$GITHUB_ENV"
 
-      - name: Create V5.5 source
+      - name: Create V5.5 source with official Gradle wrapper
         shell: bash
         run: |
           set -euo pipefail
           python scripts/make_v55.py
-          curl -fsSL https://services.gradle.org/distributions/gradle-8.13-wrapper.jar -o "$PROJECT_ROOT/gradle/wrapper/gradle-wrapper.jar"
+          curl -fsSL https://services.gradle.org/distributions/gradle-8.13-bin.zip -o /tmp/gradle-8.13-bin.zip
+          echo "$GRADLE_813_DIST_SHA  /tmp/gradle-8.13-bin.zip" | sha256sum -c -
+          rm -rf /tmp/gradle-8.13
+          unzip -q /tmp/gradle-8.13-bin.zip -d /tmp
+          /tmp/gradle-8.13/bin/gradle -p "$PROJECT_ROOT" wrapper --gradle-version 8.13 --distribution-type bin --no-daemon
+          test -s "$PROJECT_ROOT/gradle/wrapper/gradle-wrapper.jar"
           echo "$GRADLE_813_JAR_SHA  $PROJECT_ROOT/gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
           chmod +x "$PROJECT_ROOT/gradlew" "$PROJECT_ROOT/scripts/verify_gradle_wrapper.sh"
 
