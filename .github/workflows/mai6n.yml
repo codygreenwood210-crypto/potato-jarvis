@@ -42,6 +42,21 @@ jobs:
           sed -i 's|lifecycle-viewmodel-compose:[^"]*|lifecycle-viewmodel-compose:2.10.0|' android/build.gradle.kts
           sed -i 's|lifecycle-runtime-compose:[^"]*|lifecycle-runtime-compose:2.10.0|' android/build.gradle.kts
 
+          # Align Java bytecode target with Kotlin/JDK 17. The previous run
+          # proved Java was defaulting to 1.8 while Kotlin compiled for 17.
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('android/build.gradle.kts')
+          text = p.read_text()
+          if 'compileOptions {' not in text:
+              needle = '''    buildFeatures {\n        compose = true\n        buildConfig = true\n    }\n'''
+              replacement = '''    buildFeatures {\n        compose = true\n        buildConfig = true\n    }\n\n    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n'''
+              if needle not in text:
+                  raise SystemExit('Expected buildFeatures block not found')
+              text = text.replace(needle, replacement, 1)
+          p.write_text(text)
+          PY
+
           # Remove the conflicting debug manifest cleartext declaration.
           cat > android/src/debug/AndroidManifest.xml <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -109,6 +124,8 @@ jobs:
 
           echo '=== lifecycle dependencies ==='
           grep -n 'lifecycle' android/build.gradle.kts
+          echo '=== Java target ==='
+          grep -n -A3 'compileOptions' android/build.gradle.kts
           echo '=== main application network settings ==='
           grep -n 'usesCleartextTraffic\|networkSecurityConfig' android/src/main/AndroidManifest.xml
           echo '=== debug manifest ==='
