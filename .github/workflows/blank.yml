@@ -10,13 +10,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: current
+          - name: lc292
+            lifecycle: "2.9.2"
             agp: "8.7.3"
             sdk: "35"
-          - name: modern
+          - name: lc294
+            lifecycle: "2.9.4"
+            agp: "8.7.3"
+            sdk: "35"
+          - name: lc2100
+            lifecycle: "2.10.0"
             agp: "8.9.1"
             sdk: "36"
-    name: ${{ matrix.name }} (AGP ${{ matrix.agp }} / SDK ${{ matrix.sdk }})
+    name: lifecycle ${{ matrix.lifecycle }} (AGP ${{ matrix.agp }} / SDK ${{ matrix.sdk }})
     steps:
       - uses: actions/checkout@v4
 
@@ -29,21 +35,20 @@ jobs:
         run: |
           set -eu
           ZIP=$(ls *.zip | head -1)
-          echo "Using archive: $ZIP"
           unzip -q "$ZIP" -d src
           ROOT=$(dirname "$(find src -name settings.gradle.kts -print -quit)")
-          echo "Project root: $ROOT"
           echo "PROJECT_ROOT=$ROOT" >> $GITHUB_ENV
-          ls "$ROOT"
 
-      - name: Apply toolchain configuration
+      - name: Patch versions
         working-directory: ${{ env.PROJECT_ROOT }}
         run: |
           chmod +x gradlew scripts/*.sh backend/run.sh
           sed -i 's/id("com.android.application") version "[^"]*"/id("com.android.application") version "${{ matrix.agp }}"/' build.gradle.kts
           sed -i 's/^\( *\)compileSdk = .*/\1compileSdk = ${{ matrix.sdk }}/' android/build.gradle.kts
           sed -i 's/^\( *\)targetSdk = .*/\1targetSdk = ${{ matrix.sdk }}/' android/build.gradle.kts
-          grep -nE 'compileSdk|targetSdk|minSdk' android/build.gradle.kts
+          sed -i 's/\(androidx\.lifecycle:[a-z-]*\):2\.9\.7/\1:${{ matrix.lifecycle }}/g' android/build.gradle.kts
+          echo "Patched dependency lines:"
+          grep -n 'lifecycle' android/build.gradle.kts
 
       - name: Assemble debug APK
         id: build
@@ -51,20 +56,19 @@ jobs:
         working-directory: ${{ env.PROJECT_ROOT }}
         run: |
           set -o pipefail
-          ./gradlew :android:assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
+          ./gradlew :android:assembleDebug --no-daemon 2>&1 | tee build.log
 
-      - name: Show errors
+      - name: Errors
         if: steps.build.outcome == 'failure'
         working-directory: ${{ env.PROJECT_ROOT }}
         run: |
-          echo "### ${{ matrix.name }} failed" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          grep -E 'requires .*(compile against|Android Gradle plugin)|minCompileSdk|Unresolved reference|Could not (find|resolve)|error:' build.log | head -40 >> $GITHUB_STEP_SUMMARY || tail -40 build.log >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "===== FAILED: lifecycle ${{ matrix.lifecycle }} ====="
+          grep -E 'Could not find|requires .*(compile against|Android Gradle plugin)|Unresolved reference|e: |error:' build.log | sort -u | head -30
+          echo "===== end ====="
 
-      - name: Record success
+      - name: Success
         if: steps.build.outcome == 'success'
-        run: echo "### ${{ matrix.name }} BUILT OK" >> $GITHUB_STEP_SUMMARY
+        run: echo "### WORKS -> lifecycle ${{ matrix.lifecycle }}, AGP ${{ matrix.agp }}, SDK ${{ matrix.sdk }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload APK
         if: steps.build.outcome == 'success'
@@ -73,11 +77,3 @@ jobs:
           name: apk-${{ matrix.name }}
           path: ${{ env.PROJECT_ROOT }}/android/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-
-      - name: Upload log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: log-${{ matrix.name }}
-          path: ${{ env.PROJECT_ROOT }}/build.log
-          if-no-files-found: warn
