@@ -129,7 +129,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT"
-          ./gradlew :android:lint --no-daemon
+          ./gradlew :android:lint --no-daemon --max-workers=1 -Dorg.gradle.jvmargs='-Xmx3g -Dfile.encoding=UTF-8'
 
       - name: Build release Android App Bundle
         shell: bash
@@ -169,7 +169,7 @@ jobs:
           path: build-src/POTATO-JARVIS-FINAL-V5.5.zip
           if-no-files-found: error
 
-      - name: Upload lint reports
+      - name: Upload lint reports and JVM crash diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -177,4 +177,5 @@ jobs:
           path: |
             ${{ env.PROJECT_ROOT }}/android/build/reports/
             ${{ env.PROJECT_ROOT }}/android/build/intermediates/lint*/
+            ${{ env.PROJECT_ROOT }}/hs_err_pid*.log
           if-no-files-found: ignore
