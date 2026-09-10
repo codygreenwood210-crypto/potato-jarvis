@@ -61,6 +61,12 @@ jobs:
               s = s.replace(anchor, replacement, 1)
           p.write_text(s)
 
+          gp = root / "gradle.properties"
+          g = gp.read_text() if gp.exists() else ""
+          lines = [line for line in g.splitlines() if not line.strip().startswith("android.experimental.lint.version")]
+          lines.append("android.experimental.lint.version=8.8.2")
+          gp.write_text("\n".join(lines) + "\n")
+
           p = root / "android/src/main/java/com/potato/jarvis/MainActivity.kt"
           s = p.read_text()
           s = s.replace("import androidx.activity.compose.rememberLauncherForActivityResult\n", "import androidx.activity.compose.rememberLauncherForActivityResult\nimport androidx.activity.compose.setContent\n")
@@ -142,6 +148,7 @@ jobs:
           grep -q 'sourceCompatibility = JavaVersion.VERSION_17' android/build.gradle.kts
           grep -q 'targetCompatibility = JavaVersion.VERSION_17' android/build.gradle.kts
           grep -q 'jvmTarget = "17"' android/build.gradle.kts
+          grep -q '^android.experimental.lint.version=8.8.2$' gradle.properties
           grep -q 'import androidx.activity.compose.setContent' android/src/main/java/com/potato/jarvis/MainActivity.kt
           grep -q 'import androidx.activity.result.PickVisualMediaRequest' android/src/main/java/com/potato/jarvis/MainActivity.kt
           grep -q 'DeviceContextSnapshot' android/src/main/java/com/potato/jarvis/device/DeviceContext.kt
@@ -173,12 +180,23 @@ jobs:
           cd "$PROJECT_ROOT"
           ./gradlew :android:processDebugResources --no-daemon
 
-      - name: Android compile and lint
+      - name: Android assembleDebug
         shell: bash
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT"
-          ./gradlew :android:assembleDebug :android:lint --no-daemon
+          ./gradlew :android:assembleDebug --no-daemon
+          test -s android/build/outputs/apk/debug/android-debug.apk
+          sha256sum android/build/outputs/apk/debug/android-debug.apk
+
+      - name: Android lint
+        shell: bash
+        env:
+          LINT_PRINT_STACKTRACE: 'true'
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT"
+          ./gradlew :android:lint --no-daemon
 
       - name: Package corrected V5.3 source
         if: success()
@@ -190,12 +208,12 @@ jobs:
           sha256sum POTATO-JARVIS-FINAL-V5.3.zip
 
       - name: Upload debug APK
-        if: success()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: potato-v5.3-debug-apk
           path: ${{ env.PROJECT_ROOT }}/android/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Upload corrected V5.3 source archive
         if: success()
