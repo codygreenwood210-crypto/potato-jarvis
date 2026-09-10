@@ -1,4 +1,4 @@
-name: POTATO V5.2 deterministic APK build
+name: POTATO V5.2 device-safe APK build
 
 on:
   push:
@@ -36,10 +36,24 @@ jobs:
           python "$GITHUB_WORKSPACE/v5.2-materialize/00-core.py"
           python "$GITHUB_WORKSPACE/v5.2-materialize/01-mainactivity.py"
           python "$GITHUB_WORKSPACE/v5.2-materialize/02-viewmodel.py"
+
+          # Device-install safety fix: the AccessibilityService entry was only
+          # reserved scaffolding and performed no cross-app control. Google Play
+          # Protect automatically blocks internet-sideloaded APKs that declare
+          # Accessibility access in affected markets, so do not declare a
+          # dormant accessibility service in the installable debug APK.
+          cp "$GITHUB_WORKSPACE/v5.2-materialize/AndroidManifest.device-safe.xml" android/src/main/AndroidManifest.xml
+
           chmod +x gradlew scripts/*.sh backend/run.sh
           echo "Project root: $ROOT"
           echo "Version: $(cat VERSION)"
           grep -n 'versionCode\|versionName\|lifecycle\|compileOptions' android/build.gradle.kts
+          echo '=== installable manifest security check ==='
+          if grep -n 'BIND_ACCESSIBILITY_SERVICE\|android.accessibilityservice.AccessibilityService' android/src/main/AndroidManifest.xml; then
+            echo 'Unexpected accessibility service declaration remains in installable manifest' >&2
+            exit 1
+          fi
+          grep -n 'uses-permission\|provider\|activity' android/src/main/AndroidManifest.xml
 
       - name: Baseline backend regression tests
         shell: bash
@@ -56,11 +70,23 @@ jobs:
           cd "$ROOT"
           ./gradlew :android:assembleDebug --no-daemon --stacktrace --warning-mode all 2>&1 | tee "$GITHUB_WORKSPACE/gradle-full.log"
 
+      - name: Verify merged manifest has no AccessibilityService declaration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$ROOT"
+          MERGED="$(find android/build/intermediates -path '*merged_manifest*' -o -path '*merged_manifests*' | head -1 || true)"
+          echo "Merged-manifest search root: ${MERGED:-not-directly-resolved}"
+          if grep -R -n 'BIND_ACCESSIBILITY_SERVICE\|android.accessibilityservice.AccessibilityService' android/build/intermediates 2>/dev/null; then
+            echo 'AccessibilityService declaration leaked into merged debug manifest' >&2
+            exit 1
+          fi
+
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: potato-v5-2-debug-apk
+          name: potato-v5-2-device-safe-debug-apk
           path: src/**/android/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
@@ -68,7 +94,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: potato-v5-2-verification-logs
+          name: potato-v5-2-device-safe-verification-logs
           path: |
             gradle-full.log
             backend-tests.log
