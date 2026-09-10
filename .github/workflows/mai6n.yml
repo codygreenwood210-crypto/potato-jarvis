@@ -1,6 +1,9 @@
 name: POTATO V5.2 deterministic APK build
 
 on:
+  push:
+    branches:
+      - nova-v5-2-apk-build
   workflow_dispatch:
 
 permissions:
@@ -19,7 +22,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Reconstruct V5.2 build tree
+      - name: Reconstruct exact V5.2 Android source
         shell: bash
         run: |
           set -euo pipefail
@@ -28,9 +31,11 @@ jobs:
           unzip -q POTATO-JARVIS-V5.1-BUILDABLE.zip -d src
           ROOT="$(dirname "$(find src -name settings.gradle.kts -print -quit)")"
           test -n "$ROOT"
-          cp -a "$GITHUB_WORKSPACE/v5.2-overrides/." "$ROOT/"
           echo "ROOT=$ROOT" >> "$GITHUB_ENV"
           cd "$ROOT"
+          python "$GITHUB_WORKSPACE/v5.2-materialize/00-core.py"
+          python "$GITHUB_WORKSPACE/v5.2-materialize/01-mainactivity.py"
+          python "$GITHUB_WORKSPACE/v5.2-materialize/02-viewmodel.py"
           chmod +x gradlew scripts/*.sh backend/run.sh
           echo "Project root: $ROOT"
           echo "Version: $(cat VERSION)"
