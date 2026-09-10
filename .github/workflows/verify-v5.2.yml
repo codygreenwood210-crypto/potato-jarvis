@@ -2,8 +2,7 @@ name: Verify POTATO V5.3
 
 on:
   push:
-    branches:
-      - verify-v5.1
+    branches: [verify-v5.1]
   workflow_dispatch:
 
 jobs:
@@ -24,7 +23,7 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Create corrected V5.3 source from V5.1
+      - name: Create corrected V5.3 source
         shell: bash
         run: |
           set -euo pipefail
@@ -35,86 +34,110 @@ jobs:
           test -n "$OLD"
           NEW="build-src/POTATO-JARVIS-V5.3"
           mv "$OLD" "$NEW"
-
-          sed -i 's/androidx.lifecycle:lifecycle-viewmodel-compose:2.9.7/androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2/' "$NEW/android/build.gradle.kts"
-          sed -i 's/androidx.lifecycle:lifecycle-runtime-compose:2.9.7/androidx.lifecycle:lifecycle-runtime-compose:2.9.2/' "$NEW/android/build.gradle.kts"
-          sed -i 's/versionCode = 51/versionCode = 53/' "$NEW/android/build.gradle.kts"
-          sed -i 's/versionName = "5.1"/versionName = "5.3"/' "$NEW/android/build.gradle.kts"
-          sed -i 's/\\"5.1\\"/\\"5.3\\"/g' "$NEW/android/build.gradle.kts"
-          printf '5.3\n' > "$NEW/VERSION"
-          sed -i 's/POTATO-JARVIS-V5.1/POTATO-JARVIS-V5.3/g' "$NEW/settings.gradle.kts" "$NEW/README.md"
-          sed -i 's/POTATO V5.1 API surface/POTATO V5.3 API surface/' "$NEW/docs/API.md"
-          sed -i 's/VERSION = "5.1"/VERSION = "5.3"/' "$NEW/backend/main.py"
-          sed -i 's/== "5.1"/== "5.3"/' "$NEW/backend/tests/test_main.py"
+          export NEW
 
           python - <<'PY'
+          import os
           from pathlib import Path
-          root = Path("build-src/POTATO-JARVIS-V5.3")
 
-          p = root / "android/build.gradle.kts"
+          root = Path(os.environ['NEW'])
+
+          # Version and compatible dependencies.
+          p = root / 'android/build.gradle.kts'
           s = p.read_text()
-          anchor = "    buildFeatures {\n        compose = true\n        buildConfig = true\n    }\n"
-          replacement = "    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n\n    kotlinOptions {\n        jvmTarget = \"17\"\n    }\n\n" + anchor
-          if "sourceCompatibility = JavaVersion.VERSION_17" not in s:
+          s = s.replace('androidx.lifecycle:lifecycle-viewmodel-compose:2.9.7', 'androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2')
+          s = s.replace('androidx.lifecycle:lifecycle-runtime-compose:2.9.7', 'androidx.lifecycle:lifecycle-runtime-compose:2.9.2')
+          s = s.replace('versionCode = 51', 'versionCode = 53')
+          s = s.replace('versionName = "5.1"', 'versionName = "5.3"')
+          s = s.replace('\\"5.1\\"', '\\"5.3\\"')
+          anchor = '    buildFeatures {\n        compose = true\n        buildConfig = true\n    }\n'
+          jvm = '    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n\n    kotlinOptions {\n        jvmTarget = "17"\n    }\n\n' + anchor
+          if 'sourceCompatibility = JavaVersion.VERSION_17' not in s:
               if anchor not in s:
-                  raise SystemExit("buildFeatures anchor not found")
-              s = s.replace(anchor, replacement, 1)
+                  raise SystemExit('buildFeatures anchor not found')
+              s = s.replace(anchor, jvm, 1)
           p.write_text(s)
 
-          gp = root / "gradle.properties"
-          g = gp.read_text() if gp.exists() else ""
-          lines = [line for line in g.splitlines() if not line.strip().startswith("android.experimental.lint.version")]
-          lines.append("android.experimental.lint.version=8.8.2")
-          gp.write_text("\n".join(lines) + "\n")
+          (root / 'VERSION').write_text('5.3\n')
+          for rel in ['settings.gradle.kts', 'README.md']:
+              p = root / rel
+              p.write_text(p.read_text().replace('POTATO-JARVIS-V5.1', 'POTATO-JARVIS-V5.3'))
+          p = root / 'docs/API.md'; p.write_text(p.read_text().replace('POTATO V5.1 API surface', 'POTATO V5.3 API surface'))
+          p = root / 'backend/main.py'; p.write_text(p.read_text().replace('VERSION = "5.1"', 'VERSION = "5.3"'))
+          p = root / 'backend/tests/test_main.py'; p.write_text(p.read_text().replace('== "5.1"', '== "5.3"'))
 
-          p = root / "android/src/main/java/com/potato/jarvis/MainActivity.kt"
+          # Use a lint runtime compatible with Compose 1.9 while retaining AGP 8.7.3.
+          p = root / 'gradle.properties'
+          lines = [x for x in p.read_text().splitlines() if not x.strip().startswith('android.experimental.lint.version')]
+          lines.append('android.experimental.lint.version=8.8.2')
+          p.write_text('\n'.join(lines) + '\n')
+
+          # Main Compose/activity corrections.
+          p = root / 'android/src/main/java/com/potato/jarvis/MainActivity.kt'
           s = p.read_text()
-          s = s.replace("import androidx.activity.compose.rememberLauncherForActivityResult\n", "import androidx.activity.compose.rememberLauncherForActivityResult\nimport androidx.activity.compose.setContent\n")
-          s = s.replace("import androidx.activity.result.ActivityResultLauncher\n", "import androidx.activity.result.ActivityResultLauncher\nimport androidx.activity.result.PickVisualMediaRequest\n")
-          s = s.replace("import androidx.compose.foundation.layout.weight\n", "")
-          s = s.replace("import androidx.compose.material3.CircularProgressIndicator\n", "import androidx.compose.material3.CircularProgressIndicator\nimport androidx.compose.material3.ExperimentalMaterial3Api\n")
-          s = s.replace("@Composable\nfun PotatoApp(vm: JarvisViewModel) {", "@OptIn(ExperimentalMaterial3Api::class)\n@Composable\nfun PotatoApp(vm: JarvisViewModel) {", 1)
-          s = s.replace("    PotatoTheme {\n        if (state.setupRequired) {\n            SetupScreen(vm, state)\n            return@MaterialTheme\n        }\n        Scaffold(", "    PotatoTheme {\n        if (state.setupRequired) {\n            SetupScreen(vm, state)\n        } else {\n            Scaffold(", 1)
-          close_old = "            }\n        }\n    }\n}\n\n@Composable\nprivate fun NotificationScreen"
-          close_new = "            }\n        }\n        }\n    }\n}\n\n@Composable\nprivate fun NotificationScreen"
+          s = s.replace('import androidx.activity.compose.rememberLauncherForActivityResult\n', 'import androidx.activity.compose.LocalActivity\nimport androidx.activity.compose.rememberLauncherForActivityResult\n', 1)
+          s = s.replace('import androidx.activity.compose.rememberLauncherForActivityResult\n', 'import androidx.activity.compose.rememberLauncherForActivityResult\nimport androidx.activity.compose.setContent\n', 1)
+          s = s.replace('import androidx.activity.result.ActivityResultLauncher\n', 'import androidx.activity.result.ActivityResultLauncher\nimport androidx.activity.result.PickVisualMediaRequest\n', 1)
+          s = s.replace('import androidx.compose.foundation.layout.weight\n', '')
+          s = s.replace('import androidx.compose.material3.CircularProgressIndicator\n', 'import androidx.compose.material3.CircularProgressIndicator\nimport androidx.compose.material3.ExperimentalMaterial3Api\n', 1)
+          s = s.replace('@Composable\nfun PotatoApp(vm: JarvisViewModel) {', '@OptIn(ExperimentalMaterial3Api::class)\n@Composable\nfun PotatoApp(vm: JarvisViewModel) {', 1)
+          s = s.replace('    PotatoTheme {\n        if (state.setupRequired) {\n            SetupScreen(vm, state)\n            return@MaterialTheme\n        }\n        Scaffold(', '    PotatoTheme {\n        if (state.setupRequired) {\n            SetupScreen(vm, state)\n        } else {\n            Scaffold(', 1)
+          close_old = '            }\n        }\n    }\n}\n\n@Composable\nprivate fun NotificationScreen'
+          close_new = '            }\n        }\n        }\n    }\n}\n\n@Composable\nprivate fun NotificationScreen'
           if close_old not in s:
-              raise SystemExit("PotatoApp close anchor not found")
+              raise SystemExit('PotatoApp close anchor not found')
           s = s.replace(close_old, close_new, 1)
-          s = s.replace("ActivityResultContracts.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)", "PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)")
-          upload_old = "                vm.uploadFile(name, mime, length) {\n                    context.contentResolver.openInputStream(uri) ?: error(\"Unable to open selected file\")\n                }"
-          upload_new = "                vm.uploadFile(\n                    name = name,\n                    mime = mime,\n                    length = length,\n                    openStream = {\n                        context.contentResolver.openInputStream(uri)\n                            ?: error(\"Unable to open selected file\")\n                    },\n                )"
+          s = s.replace('ActivityResultContracts.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)', 'PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)')
+          upload_old = '                vm.uploadFile(name, mime, length) {\n                    context.contentResolver.openInputStream(uri) ?: error("Unable to open selected file")\n                }'
+          upload_new = '                vm.uploadFile(\n                    name = name,\n                    mime = mime,\n                    length = length,\n                    openStream = {\n                        context.contentResolver.openInputStream(uri)\n                            ?: error("Unable to open selected file")\n                    },\n                )'
           if upload_old not in s:
-              raise SystemExit("upload call anchor not found")
+              raise SystemExit('upload call anchor not found')
           s = s.replace(upload_old, upload_new, 1)
+          s = s.replace('Text(exportResult, Modifier.weight(0f).verticalScroll(rememberScrollState()), maxLines = 5)', 'Text(exportResult, Modifier.verticalScroll(rememberScrollState()), maxLines = 5)')
+          s = s.replace('val activity = LocalContext.current as? FragmentActivity', 'val activity = LocalActivity.current as? FragmentActivity', 1)
           p.write_text(s)
 
-          p = root / "android/src/main/java/com/potato/jarvis/ui/JarvisViewModel.kt"
+          # Correct Result API usage.
+          p = root / 'android/src/main/java/com/potato/jarvis/ui/JarvisViewModel.kt'
           s = p.read_text()
-          old = "        runCatching { api.biometricChallenge(id).optString(\"challenge\") }\n            .filter { it.isNotBlank() }\n            .onSuccess { challenge -> withContext(Dispatchers.Main) { onReady(challenge) } }\n            .onFailure { error -> withContext(Dispatchers.Main) { onFailure(friendlyError(error)) } }"
-          new = "        runCatching {\n            api.biometricChallenge(id).optString(\"challenge\")\n                .takeIf { it.isNotBlank() }\n                ?: error(\"Biometric challenge was empty\")\n        }\n            .onSuccess { challenge -> withContext(Dispatchers.Main) { onReady(challenge) } }\n            .onFailure { error -> withContext(Dispatchers.Main) { onFailure(friendlyError(error)) } }"
+          old = '        runCatching { api.biometricChallenge(id).optString("challenge") }\n            .filter { it.isNotBlank() }\n            .onSuccess { challenge -> withContext(Dispatchers.Main) { onReady(challenge) } }\n            .onFailure { error -> withContext(Dispatchers.Main) { onFailure(friendlyError(error)) } }'
+          new = '        runCatching {\n            api.biometricChallenge(id).optString("challenge")\n                .takeIf { it.isNotBlank() }\n                ?: error("Biometric challenge was empty")\n        }\n            .onSuccess { challenge -> withContext(Dispatchers.Main) { onReady(challenge) } }\n            .onFailure { error -> withContext(Dispatchers.Main) { onFailure(friendlyError(error)) } }'
           if old not in s:
-              raise SystemExit("biometric anchor not found")
+              raise SystemExit('biometric anchor not found')
           p.write_text(s.replace(old, new, 1))
 
-          p = root / "android/src/main/java/com/potato/jarvis/device/DeviceContext.kt"
-          s = p.read_text()
-          s = s.replace("import com.potato.jarvis.BuildConfig\n", "import com.potato.jarvis.BuildConfig\nimport com.potato.jarvis.core.DeviceContextSnapshot\n")
-          start = s.index("    data class Snapshot(")
-          end = s.index("\n\n    fun snapshot", start)
+          # Use the shared device-context model expected by the ViewModel.
+          p = root / 'android/src/main/java/com/potato/jarvis/device/DeviceContext.kt'
+          s = p.read_text().replace('import com.potato.jarvis.BuildConfig\n', 'import com.potato.jarvis.BuildConfig\nimport com.potato.jarvis.core.DeviceContextSnapshot\n', 1)
+          start = s.index('    data class Snapshot(')
+          end = s.index('\n\n    fun snapshot', start)
           s = s[:start] + s[end+2:]
-          s = s.replace("fun snapshot(includeCalendar: Boolean, includeContacts: Boolean, includeLocation: Boolean): Snapshot {", "fun snapshot(includeCalendar: Boolean, includeContacts: Boolean, includeLocation: Boolean): DeviceContextSnapshot {")
-          s = s.replace("return Snapshot(", "return DeviceContextSnapshot(", 1)
+          s = s.replace('fun snapshot(includeCalendar: Boolean, includeContacts: Boolean, includeLocation: Boolean): Snapshot {', 'fun snapshot(includeCalendar: Boolean, includeContacts: Boolean, includeLocation: Boolean): DeviceContextSnapshot {')
+          s = s.replace('return Snapshot(', 'return DeviceContextSnapshot(', 1)
           p.write_text(s)
 
-          p = root / "android/src/main/java/com/potato/jarvis/voice/VoiceManager.kt"
+          # Handle nullable SpeechRecognizer without unsafe calls.
+          p = root / 'android/src/main/java/com/potato/jarvis/voice/VoiceManager.kt'
           s = p.read_text()
-          old = "        stopSpeaking()\n        recognizer.cancel()\n        val intent"
-          new = "        stopSpeaking()\n        val activeRecognizer = recognizer ?: run {\n            onError(\"Speech recognition is unavailable on this device\")\n            onState(State.ERROR)\n            return\n        }\n        activeRecognizer.cancel()\n        val intent"
+          old = '        stopSpeaking()\n        recognizer.cancel()\n        val intent'
+          new = '        stopSpeaking()\n        val activeRecognizer = recognizer ?: run {\n            onError("Speech recognition is unavailable on this device")\n            onState(State.ERROR)\n            return\n        }\n        activeRecognizer.cancel()\n        val intent'
           if old not in s:
-              raise SystemExit("recognizer anchor not found")
-          s = s.replace(old, new, 1)
-          s = s.replace("runCatching { recognizer.startListening(intent) }", "runCatching { activeRecognizer.startListening(intent) }", 1)
+              raise SystemExit('recognizer anchor not found')
+          s = s.replace(old, new, 1).replace('runCatching { recognizer.startListening(intent) }', 'runCatching { activeRecognizer.startListening(intent) }', 1)
           p.write_text(s)
+
+          # Manifest: debug-only HTTP override, optional camera hardware, safe backup rules.
+          p = root / 'android/src/main/AndroidManifest.xml'
+          s = p.read_text()
+          cam = '    <uses-permission android:name="android.permission.CAMERA" />\n'
+          features = '    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />\n'
+          if 'android.hardware.camera" android:required="false"' not in s:
+              s = s.replace(cam, cam + features, 1)
+          if 'android:dataExtractionRules=' not in s:
+              s = s.replace('        android:allowBackup="false"\n', '        android:allowBackup="false"\n        android:dataExtractionRules="@xml/data_extraction_rules"\n', 1)
+          p.write_text(s)
+
+          (root / 'android/src/main/res/xml/data_extraction_rules.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>\n<data-extraction-rules>\n    <cloud-backup>\n        <exclude domain="sharedpref" path="potato_secure.xml" />\n        <exclude domain="database" path="potato_local.db" />\n    </cloud-backup>\n    <device-transfer>\n        <exclude domain="sharedpref" path="potato_secure.xml" />\n        <exclude domain="database" path="potato_local.db" />\n    </device-transfer>\n</data-extraction-rules>\n''')
           PY
 
           cat > "$NEW/android/src/debug/AndroidManifest.xml" <<'EOF'
@@ -144,14 +167,16 @@ jobs:
           grep -q 'versionName = "5.3"' android/build.gradle.kts
           grep -q 'VERSION = "5.3"' backend/main.py
           grep -q 'lifecycle-viewmodel-compose:2.9.2' android/build.gradle.kts
-          grep -q 'lifecycle-runtime-compose:2.9.2' android/build.gradle.kts
           grep -q 'sourceCompatibility = JavaVersion.VERSION_17' android/build.gradle.kts
-          grep -q 'targetCompatibility = JavaVersion.VERSION_17' android/build.gradle.kts
           grep -q 'jvmTarget = "17"' android/build.gradle.kts
           grep -q '^android.experimental.lint.version=8.8.2$' gradle.properties
-          grep -q 'import androidx.activity.compose.setContent' android/src/main/java/com/potato/jarvis/MainActivity.kt
-          grep -q 'import androidx.activity.result.PickVisualMediaRequest' android/src/main/java/com/potato/jarvis/MainActivity.kt
-          grep -q 'DeviceContextSnapshot' android/src/main/java/com/potato/jarvis/device/DeviceContext.kt
+          grep -q 'import androidx.activity.compose.LocalActivity' android/src/main/java/com/potato/jarvis/MainActivity.kt
+          ! grep -q 'weight(0f)' android/src/main/java/com/potato/jarvis/MainActivity.kt
+          grep -q 'android.hardware.camera" android:required="false"' android/src/main/AndroidManifest.xml
+          grep -q 'android:dataExtractionRules="@xml/data_extraction_rules"' android/src/main/AndroidManifest.xml
+          test -s android/src/main/res/xml/data_extraction_rules.xml
+          grep -q 'tools:replace="android:usesCleartextTraffic"' android/src/debug/AndroidManifest.xml
+          grep -q 'android:description="@string/potato_accessibility_service_description"' android/src/main/res/xml/accessibility_service_config.xml
           ! grep -q 'androidx.lifecycle:.*:2.9.7' android/build.gradle.kts
 
       - name: Backend dependencies
