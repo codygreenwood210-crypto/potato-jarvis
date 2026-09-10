@@ -1,0 +1,139 @@
+name: Auto-fix and build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Unpack archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/lg
+          unzip -q "$(ls *.zip | head -1)" -d src
+          ROOT=$(dirname "$(find src -name settings.gradle.kts -print -quit)")
+          echo "PROJECT_ROOT=$ROOT" >> $GITHUB_ENV
+          chmod +x "$ROOT/gradlew" "$ROOT"/scripts/*.sh "$ROOT"/backend/run.sh
+
+      - name: Auto-resolve versions and build
+        id: build
+        continue-on-error: true
+        shell: bash
+        working-directory: ${{ env.PROJECT_ROOT }}
+        run: |
+          set -uo pipefail
+          mkdir -p /tmp/lg
+
+          FALLBACK="2.10.0 2.9.4 2.9.2 2.9.0"
+
+          echo "::group::Fetching version index (optional)"
+          if curl -fsSL --max-time 30 \
+               https://dl.google.com/dl/android/maven2/androidx/lifecycle/group-index.xml \
+               -o /tmp/idx.xml; then
+            echo "downloaded $(wc -c < /tmp/idx.xml) bytes"
+            for a in lifecycle-runtime-compose lifecycle-viewmodel-compose; do
+              grep -o "<$a versions=\"[^\"]*\"" /tmp/idx.xml \
+                | sed "s/.*versions=\"//" | tr "," "\n" \
+                | grep -vE "alpha|beta|rc|dev" | sort > "/tmp/$a.srt"
+              echo "$a -> $(wc -l < /tmp/$a.srt) stable versions"
+            done
+            comm -12 /tmp/lifecycle-runtime-compose.srt \
+                     /tmp/lifecycle-viewmodel-compose.srt \
+              | sort -V -r > /tmp/cands.txt
+          else
+            echo "fetch failed; will use built-in list"
+            : > /tmp/cands.txt
+          fi
+          echo "::endgroup::"
+
+          if [ -s /tmp/cands.txt ]; then
+            SRC="google index"; CANDS=$(head -4 /tmp/cands.txt | tr '\n' ' ')
+          else
+            SRC="built-in fallback"; CANDS="$FALLBACK"
+          fi
+          echo "Candidate source: $SRC"
+          echo "Candidates: $CANDS"
+
+          SDK=$(grep -oE 'compileSdk *= *[0-9]+' android/build.gradle.kts | grep -oE '[0-9]+' | head -1)
+          AGP=$(grep -oE 'com.android.application"\) version "[0-9.]+' build.gradle.kts | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          SDK=${SDK:-35}; AGP=${AGP:-8.7.3}
+          echo "Starting point: compileSdk=$SDK agp=$AGP"
+
+          apply() {
+            sed -i "s/\(androidx\.lifecycle:[a-z-]*\):[0-9][0-9a-zA-Z.+-]*/\1:$1/g" android/build.gradle.kts
+            sed -i "s/^\( *\)compileSdk = .*/\1compileSdk = $2/" android/build.gradle.kts
+            sed -i "s/^\( *\)targetSdk = .*/\1targetSdk = $2/" android/build.gradle.kts
+            sed -i "s/id(\"com.android.application\") version \"[^\"]*\"/id(\"com.android.application\") version \"$3\"/" build.gradle.kts
+          }
+
+          ATTEMPT=0
+          echo "| # | lifecycle | compileSdk | AGP | result |" > /tmp/report.md
+          echo "|---|---|---|---|---|" >> /tmp/report.md
+
+          for LC in $CANDS; do
+            for RETRY in 1 2; do
+              ATTEMPT=$((ATTEMPT+1))
+              LOG=/tmp/lg/attempt-$ATTEMPT.log
+              echo "=========== attempt $ATTEMPT: lifecycle=$LC sdk=$SDK agp=$AGP ==========="
+              apply "$LC" "$SDK" "$AGP"
+              ./gradlew :android:assembleDebug --no-daemon 2>&1 | tee "$LOG" | tail -25
+              if [ "${PIPESTATUS[0]}" = "0" ]; then
+                echo "| $ATTEMPT | $LC | $SDK | $AGP | **SUCCESS** |" >> /tmp/report.md
+                { echo "## Build succeeded"; echo; echo "lifecycle \`$LC\`, compileSdk \`$SDK\`, AGP \`$AGP\`"; echo; cat /tmp/report.md; } > $GITHUB_STEP_SUMMARY
+                exit 0
+              fi
+
+              NEED_SDK=$(grep -oE 'compile against version [0-9]+' "$LOG" | grep -oE '[0-9]+' | sort -n | tail -1)
+              NEED_AGP=$(grep -oE 'requires Android Gradle plugin [0-9]+\.[0-9]+\.[0-9]+' "$LOG" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tail -1)
+              REASON=$(grep -E 'Could not find|requires |^e: |error:' "$LOG" | head -1 | cut -c1-80)
+              echo "| $ATTEMPT | $LC | $SDK | $AGP | ${REASON:-see log} |" >> /tmp/report.md
+
+              CHANGED=0
+              if [ -n "$NEED_SDK" ] && [ "$NEED_SDK" != "$SDK" ]; then SDK=$NEED_SDK; CHANGED=1; fi
+              if [ -n "$NEED_AGP" ] && [ "$NEED_AGP" != "$AGP" ]; then AGP=$NEED_AGP; CHANGED=1; fi
+              [ "$CHANGED" = "0" ] && break
+              echo ">>> toolchain asked for compileSdk=$SDK agp=$AGP - retrying"
+            done
+          done
+
+          { echo "## No combination built"; echo; cat /tmp/report.md; } > $GITHUB_STEP_SUMMARY
+          echo "############ LAST FAILURE IN FULL ############"
+          LAST=$(ls -1 /tmp/lg/attempt-*.log 2>/dev/null | tail -1)
+          if [ -n "$LAST" ]; then
+            sed -n '/FAILURE:/,$p' "$LAST" | head -100
+            echo "############ all distinct error lines ############"
+            cat /tmp/lg/attempt-*.log | grep -E 'Could not find|requires |Unresolved reference|^e: |error:' | sort -u | head -60
+          else
+            echo "No attempt ran at all - candidate list was: $CANDS"
+          fi
+          exit 1
+
+      - name: Attempt report
+        if: always()
+        shell: bash
+        run: cat /tmp/report.md 2>/dev/null || echo "no report produced"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: /tmp/lg/
+          if-no-files-found: warn
+
+      - name: Upload APK
+        if: steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: potato-debug-apk
+          path: ${{ env.PROJECT_ROOT }}/android/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
