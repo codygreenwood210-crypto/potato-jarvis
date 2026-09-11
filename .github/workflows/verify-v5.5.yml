@@ -33,6 +33,7 @@ jobs:
           mkdir -p input build-src
           gh run download 34468722357 -n POTATO-JARVIS-FINAL-V5.4 -D input
           test -s input/POTATO-JARVIS-FINAL-V5.4.zip
+          unzip -t input/POTATO-JARVIS-FINAL-V5.4.zip >/dev/null
           unzip -q input/POTATO-JARVIS-FINAL-V5.4.zip -d build-src
           test -d build-src/POTATO-JARVIS-V5.4
           mv build-src/POTATO-JARVIS-V5.4 build-src/POTATO-JARVIS-V5.5
@@ -49,11 +50,12 @@ jobs:
           echo "GRADLE_813_DIST_SHA=$DIST_SHA" >> "$GITHUB_ENV"
           echo "GRADLE_813_JAR_SHA=$JAR_SHA" >> "$GITHUB_ENV"
 
-      - name: Create V5.5 source with official Gradle wrapper
+      - name: Create and finalize V5.5 source
         shell: bash
         run: |
           set -euo pipefail
           python scripts/make_v55.py
+          python scripts/finalize_v55.py
           curl -fsSL https://services.gradle.org/distributions/gradle-8.13-bin.zip -o /tmp/gradle-8.13-bin.zip
           echo "$GRADLE_813_DIST_SHA  /tmp/gradle-8.13-bin.zip" | sha256sum -c -
           rm -rf /tmp/gradle-8.13
@@ -82,9 +84,13 @@ jobs:
           grep -q 'Text("Accept")' android/src/main/java/com/potato/jarvis/MainActivity.kt
           grep -q 'Text("Decline")' android/src/main/java/com/potato/jarvis/MainActivity.kt
           grep -q 'foreground_package' android/src/main/java/com/potato/jarvis/accessibility/PotatoAccessibilityService.kt
+          grep -q 'ACCESS_FINE_LOCATION' android/src/main/java/com/potato/jarvis/device/DeviceContext.kt
+          grep -q 'ACCESS_COARSE_LOCATION' android/src/main/java/com/potato/jarvis/device/DeviceContext.kt
+          grep -q 'catch (_: SecurityException)' android/src/main/java/com/potato/jarvis/device/DeviceContext.kt
           ! grep -q '^android.experimental.lint.version=' gradle.properties
           test -s docs/PLAY_CONSOLE_ACCESSIBILITY_DECLARATION_V5.5.md
           test -s docs/RELEASE_READINESS_V5.5.md
+          test -s docs/POTATO_V5.5_COMPLETION_ROADMAP.md
           test -s gradle/wrapper/gradle-wrapper.jar
 
       - name: Backend dependencies
@@ -113,6 +119,13 @@ jobs:
           cd "$PROJECT_ROOT"
           ./gradlew :android:processDebugResources --no-daemon
 
+      - name: Android unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT"
+          ./gradlew :android:testDebugUnitTest --no-daemon
+
       - name: Android assembleDebug
         shell: bash
         run: |
@@ -130,6 +143,7 @@ jobs:
           set -euo pipefail
           cd "$PROJECT_ROOT"
           ./gradlew :android:lint --no-daemon --max-workers=1 -Dorg.gradle.jvmargs='-Xmx3g -Dfile.encoding=UTF-8'
+          test -s android/build/reports/lint-results-debug.html
 
       - name: Build release Android App Bundle
         shell: bash
@@ -145,7 +159,9 @@ jobs:
         run: |
           set -euo pipefail
           cd build-src
+          rm -f POTATO-JARVIS-FINAL-V5.5.zip
           zip -qr POTATO-JARVIS-FINAL-V5.5.zip POTATO-JARVIS-V5.5
+          unzip -t POTATO-JARVIS-FINAL-V5.5.zip >/dev/null
           sha256sum POTATO-JARVIS-FINAL-V5.5.zip
 
       - name: Upload V5.5 debug APK
