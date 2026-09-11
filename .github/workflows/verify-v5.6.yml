@@ -16,7 +16,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 55
     env:
       V55_RUN_ID: '34605276632'
       V55_SOURCE_SHA256: '0f78572887384f96f598c2b2c7492aba24f94b23d07f7688f86da7a84ea1d317'
@@ -46,10 +46,11 @@ jobs:
             -n POTATO-JARVIS-FINAL-V5.5 \
             -D "$RUNNER_TEMP/v55-input"
           echo "$V55_SOURCE_SHA256  $RUNNER_TEMP/v55-input/POTATO-JARVIS-FINAL-V5.5.zip" | sha256sum -c -
+          unzip -t "$RUNNER_TEMP/v55-input/POTATO-JARVIS-FINAL-V5.5.zip" >/dev/null
           unzip -q "$RUNNER_TEMP/v55-input/POTATO-JARVIS-FINAL-V5.5.zip" -d "$RUNNER_TEMP/v55-extracted"
           test -d "$RUNNER_TEMP/v55-extracted/POTATO-JARVIS-V5.5"
 
-      - name: Reconstruct exact V5.6 source
+      - name: Reconstruct exact audited V5.6 source
         run: |
           set -euo pipefail
           python scripts/make_v56.py "$RUNNER_TEMP/v55-extracted/POTATO-JARVIS-V5.5"
@@ -66,10 +67,17 @@ jobs:
           grep -F 'versionName = "5.6"' android/build.gradle.kts
           grep -F 'AccessibilityConsent.isAccepted' android/src/main/java/com/potato/jarvis/accessibility/PotatoAccessibilityService.kt
           grep -F 'foregroundPackage = foregroundPackage()' android/src/main/java/com/potato/jarvis/device/DeviceContext.kt
+          grep -F 'class SseFrameAccumulator' android/src/main/java/com/potato/jarvis/core/SseFrameAccumulator.kt
           grep -F 'class DeepLinkRouterTest' android/src/test/java/com/potato/jarvis/DeepLinkRouterTest.kt
           grep -F 'class SecurityGatewayTest' android/src/test/java/com/potato/jarvis/SecurityGatewayTest.kt
+          grep -F 'class SseFrameAccumulatorTest' android/src/test/java/com/potato/jarvis/SseFrameAccumulatorTest.kt
+          test -s scripts/scan_secrets.py
+          test -s scripts/verify_source_archive.py
+          test -s docs/RELEASE_READINESS_V5.6.md
+          test -s docs/PLAY_CONSOLE_ACCESSIBILITY_DECLARATION_V5.6.md
           ! grep -F 'android.permission.CAMERA' android/src/main/AndroidManifest.xml
           test ! -f .github/workflows/build-matrix.yml
+          python scripts/scan_secrets.py .
           python - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
@@ -89,14 +97,16 @@ jobs:
         run: |
           set -euo pipefail
           cd "$PROJECT"
-          chmod +x gradlew scripts/*.sh backend/run.sh
+          chmod +x gradlew scripts/*.sh scripts/*.py backend/run.sh
           ./scripts/verify_gradle_wrapper.sh
 
-      - name: Backend dependencies
+      - name: Install backend and audit dependencies
         run: |
           set -euo pipefail
           cd "$PROJECT"
-          python -m pip install --disable-pip-version-check -r backend/requirements.txt
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install -r backend/requirements.txt pip-audit==2.10.1
+          pip-audit -r backend/requirements.txt
 
       - name: Backend compile and tests
         run: |
@@ -104,6 +114,12 @@ jobs:
           cd "$PROJECT"
           python -m compileall -q backend
           python -m pytest -q backend/tests
+
+      - name: Android resources
+        run: |
+          set -euo pipefail
+          cd "$PROJECT"
+          ./gradlew :android:processDebugResources --no-daemon --stacktrace
 
       - name: Android unit tests
         run: |
@@ -119,73 +135,61 @@ jobs:
           import xml.etree.ElementTree as ET
           from pathlib import Path
           reports = list(Path('android/build/test-results/testDebugUnitTest').glob('TEST-*.xml'))
-          tests = 0
-          failures = 0
-          errors = 0
+          if not reports:
+              raise SystemExit('Android test task produced no JUnit reports')
+          tests = failures = errors = skipped = 0
           for path in reports:
               root = ET.parse(path).getroot()
               tests += int(root.attrib.get('tests', '0'))
               failures += int(root.attrib.get('failures', '0'))
               errors += int(root.attrib.get('errors', '0'))
+              skipped += int(root.attrib.get('skipped', '0'))
           if tests <= 0:
               raise SystemExit('Android test task produced zero actual tests')
           if failures or errors:
               raise SystemExit(f'Android tests not clean: tests={tests} failures={failures} errors={errors}')
-          print(f'ANDROID_TESTS_EXECUTED={tests}')
+          print(f'ANDROID_TESTS_EXECUTED={tests} skipped={skipped}')
           PY
-
-      - name: Android resources
-        run: |
-          set -euo pipefail
-          cd "$PROJECT"
-          ./gradlew :android:processDebugResources --no-daemon --stacktrace
 
       - name: Android assembleDebug
         run: |
           set -euo pipefail
           cd "$PROJECT"
           ./gradlew :android:assembleDebug --no-daemon --stacktrace
+          test -s android/build/outputs/apk/debug/android-debug.apk
 
       - name: Android lint
+        env:
+          LINT_PRINT_STACKTRACE: 'true'
         run: |
           set -euo pipefail
           cd "$PROJECT"
           ./gradlew :android:lint --no-daemon --max-workers=1 -Dorg.gradle.jvmargs='-Xmx3g -Dfile.encoding=UTF-8' --stacktrace
+          test -s android/build/reports/lint-results-debug.html
 
       - name: Build release Android App Bundle
         run: |
           set -euo pipefail
           cd "$PROJECT"
           ./gradlew :android:bundleRelease --no-daemon --stacktrace
+          test -s android/build/outputs/bundle/release/android-release.aab
 
-      - name: Package and validate clean V5.6 source
+      - name: Package and independently verify clean V5.6 source
         run: |
           set -euo pipefail
           cd "$PROJECT"
           python scripts/package_clean_source.py "$RUNNER_TEMP/POTATO-JARVIS-FINAL-V5.6.zip" | tee "$RUNNER_TEMP/source-package.txt"
-          unzip -t "$RUNNER_TEMP/POTATO-JARVIS-FINAL-V5.6.zip"
-          python - <<'PY'
-          from zipfile import ZipFile
-          import os
-          path = os.path.join(os.environ['RUNNER_TEMP'], 'POTATO-JARVIS-FINAL-V5.6.zip')
-          with ZipFile(path) as z:
-              names = z.namelist()
-              roots = {n.split('/', 1)[0] for n in names if n}
-              if roots != {'POTATO-JARVIS-V5.6'}:
-                  raise SystemExit(f'Bad source archive root: {roots}')
-              bad = [n for n in names if '/build/' in n or '/.gradle/' in n or '/.kotlin/' in n or '__pycache__' in n or n.endswith(('.apk','.aab','.pyc'))]
-              if bad:
-                  raise SystemExit('Generated output leaked into source ZIP: ' + ', '.join(bad[:20]))
-              print(f'CLEAN_SOURCE_ARCHIVE=PASS files={len(names)}')
-          PY
+          python scripts/verify_source_archive.py "$RUNNER_TEMP/POTATO-JARVIS-FINAL-V5.6.zip"
+          unzip -t "$RUNNER_TEMP/POTATO-JARVIS-FINAL-V5.6.zip" >/dev/null
 
-      - name: Artifact hashes
+      - name: Record artifact hashes
         run: |
           set -euo pipefail
           cd "$PROJECT"
           sha256sum android/build/outputs/apk/debug/*.apk | tee "$RUNNER_TEMP/apk.sha256"
           sha256sum android/build/outputs/bundle/release/*.aab | tee "$RUNNER_TEMP/aab.sha256"
           sha256sum "$RUNNER_TEMP/POTATO-JARVIS-FINAL-V5.6.zip" | tee "$RUNNER_TEMP/source.sha256"
+          cat "$RUNNER_TEMP"/*.sha256
 
       - name: Upload V5.6 debug APK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -215,6 +219,7 @@ jobs:
           name: potato-v5.6-verification-reports
           path: |
             ${{ env.PROJECT }}/android/build/reports/tests/
+            ${{ env.PROJECT }}/android/build/test-results/
             ${{ env.PROJECT }}/android/build/reports/lint-results-debug.html
             ${{ env.PROJECT }}/android/build/reports/lint-results-debug.xml
             ${{ runner.temp }}/*.sha256
