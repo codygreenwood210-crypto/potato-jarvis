@@ -97,7 +97,7 @@ def install_ci_evidence_finalizer(root: Path) -> None:
     anchor = "OUT.parent.mkdir(parents=True, exist_ok=True)\n"
     if anchor not in text:
         fail("clean source packager anchor not found")
-    finalizer = r'''
+    finalizer = r"""
 
 
 def finalize_ci_evidence() -> None:
@@ -209,7 +209,7 @@ Production release still requires developer-controlled signing / Play App Signin
 
 
 finalize_ci_evidence()
-'''
+"""
     package_script.write_text(text.replace(anchor, finalizer + "\n" + anchor, 1), encoding="utf-8")
 
 
