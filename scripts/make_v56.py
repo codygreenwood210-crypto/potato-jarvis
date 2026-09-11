@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import lzma
 import shutil
 import subprocess
 import sys
 import zlib
-import lzma
 from pathlib import Path
 
 PAYLOAD_DIR = Path(__file__).resolve().parent / "v56_patch"
+STAGE2_DIR = Path(__file__).resolve().parent / "v56_stage2"
+STAGE2_COMPRESSED_SHA256 = "3231fa0a0744ecb836d772e623371055ca81e1f24e2ebdb9da109424bc348693"
 CACHE_NAMES = {".gradle", ".kotlin", ".pytest_cache", "build", "__pycache__", "dist"}
 
 
@@ -24,6 +27,27 @@ def clean_generated(root: Path) -> None:
     for path in root.rglob("*"):
         if path.is_file() and path.suffix.lower() in {".pyc", ".apk", ".aab", ".jks", ".keystore", ".orig", ".rej"}:
             path.unlink()
+
+
+def decode_stage2_payload() -> bytes:
+    parts = sorted(STAGE2_DIR.glob("part*.txt"))
+    if not parts:
+        fail("missing V5.6 second-stage payload chunks")
+    encoded = "".join(p.read_text(encoding="ascii").strip() for p in parts)
+    try:
+        compressed = base64.b64decode(encoded, validate=True)
+    except Exception as exc:
+        fail(f"second-stage base64 payload is invalid: {exc}")
+    digest = hashlib.sha256(compressed).hexdigest()
+    if digest != STAGE2_COMPRESSED_SHA256:
+        fail(
+            "second-stage payload SHA-256 mismatch: "
+            f"expected {STAGE2_COMPRESSED_SHA256}, got {digest}"
+        )
+    try:
+        return lzma.decompress(compressed)
+    except lzma.LZMAError as exc:
+        fail(f"second-stage LZMA payload is corrupt: {exc}")
 
 
 def main() -> None:
@@ -54,10 +78,7 @@ def main() -> None:
         sys.stderr.write(completed.stdout.decode("utf-8", errors="replace"))
         fail(f"base patch exited {completed.returncode}")
 
-    stage2_file = Path(__file__).resolve().parent / "v56_stage2.txt"
-    if not stage2_file.is_file():
-        fail("missing V5.6 second-stage audit payload")
-    stage2_patch = lzma.decompress(base64.b64decode(stage2_file.read_text(encoding="ascii").strip()))
+    stage2_patch = decode_stage2_payload()
     stage2 = subprocess.run(
         ["patch", "-p1", "--batch", "--forward", "--reject-file=-"],
         cwd=dest,
