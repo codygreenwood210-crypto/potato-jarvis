@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import zlib
+import lzma
 from pathlib import Path
 
 PAYLOAD_DIR = Path(__file__).resolve().parent / "v56_patch"
@@ -51,7 +52,22 @@ def main() -> None:
     )
     if completed.returncode != 0:
         sys.stderr.write(completed.stdout.decode("utf-8", errors="replace"))
-        fail(f"patch exited {completed.returncode}")
+        fail(f"base patch exited {completed.returncode}")
+
+    stage2_file = Path(__file__).resolve().parent / "v56_stage2.txt"
+    if not stage2_file.is_file():
+        fail("missing V5.6 second-stage audit payload")
+    stage2_patch = lzma.decompress(base64.b64decode(stage2_file.read_text(encoding="ascii").strip()))
+    stage2 = subprocess.run(
+        ["patch", "-p1", "--batch", "--forward", "--reject-file=-"],
+        cwd=dest,
+        input=stage2_patch,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if stage2.returncode != 0:
+        sys.stderr.write(stage2.stdout.decode("utf-8", errors="replace"))
+        fail(f"second-stage patch exited {stage2.returncode}")
 
     deleted = dest / ".github/workflows/build-matrix.yml"
     if deleted.exists():
@@ -65,7 +81,12 @@ def main() -> None:
         "android/src/main/java/com/potato/jarvis/device/DeviceContext.kt": "foregroundPackage = foregroundPackage()",
         "android/src/test/java/com/potato/jarvis/DeepLinkRouterTest.kt": "class DeepLinkRouterTest",
         "android/src/test/java/com/potato/jarvis/SecurityGatewayTest.kt": "class SecurityGatewayTest",
-        "scripts/package_clean_source.py": "ARCHIVE_ROOT=",
+        "android/src/main/java/com/potato/jarvis/core/SseFrameAccumulator.kt": "class SseFrameAccumulator",
+        "android/src/test/java/com/potato/jarvis/SseFrameAccumulatorTest.kt": "class SseFrameAccumulatorTest",
+        "scripts/package_clean_source.py": "ARCHIVE_ROOT",
+        "scripts/verify_source_archive.py": "SOURCE_ARCHIVE_OK",
+        "scripts/scan_secrets.py": "SECRET_PATTERN_SCAN=PASS",
+        "docs/RELEASE_READINESS_V5.6.md": "POTATO-JARVIS V5.6",
     }
     for rel, needle in invariants.items():
         path = dest / rel
@@ -81,6 +102,7 @@ def main() -> None:
     if (dest / ".github/workflows/build-matrix.yml").exists():
         fail("obsolete build matrix survived")
     print(completed.stdout.decode("utf-8", errors="replace"))
+    print(stage2.stdout.decode("utf-8", errors="replace"))
     print(f"V56_PROJECT_ROOT={dest}")
     print("V56_TRANSFORM=PASS")
 
