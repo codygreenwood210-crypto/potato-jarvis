@@ -13,6 +13,29 @@ PAYLOAD_DIR = Path(__file__).resolve().parent / "v56_patch"
 STAGE2_DIR = Path(__file__).resolve().parent / "v56_stage2"
 STAGE2_COMPRESSED_SHA256 = "3231fa0a0744ecb836d772e623371055ca81e1f24e2ebdb9da109424bc348693"
 CACHE_NAMES = {".gradle", ".kotlin", ".pytest_cache", "build", "__pycache__", "dist"}
+SECURE_REQUIREMENTS = """fastapi==0.141.1
+starlette==1.6.0
+uvicorn==0.48.0
+httpx==0.28.1
+python-dotenv==1.2.2
+python-multipart==0.0.32
+pypdf==6.18.0
+python-docx==1.2.0
+openpyxl==3.1.5
+python-pptx==1.0.2
+pytest==9.1.1
+cryptography==50.0.1
+Pillow==12.3.0
+"""
+DEPENDENCY_NOTE = """
+
+## Dependency security refresh
+- FastAPI 0.141.1 and Starlette 1.6.0.
+- python-multipart 0.0.32.
+- pypdf 6.18.0.
+- pytest 9.1.1.
+- `pip-audit` is a mandatory zero-known-vulnerability release gate.
+"""
 
 
 def fail(message: str) -> None:
@@ -48,6 +71,16 @@ def decode_stage2_payload() -> bytes:
         return lzma.decompress(compressed)
     except lzma.LZMAError as exc:
         fail(f"second-stage LZMA payload is corrupt: {exc}")
+
+
+def harden_dependencies(root: Path) -> None:
+    requirements = root / "backend/requirements.txt"
+    requirements.write_text(SECURE_REQUIREMENTS, encoding="utf-8")
+    for relative in ("CHANGES_V5.6.md", "docs/RELEASE_READINESS_V5.6.md"):
+        path = root / relative
+        text = path.read_text(encoding="utf-8")
+        if "FastAPI 0.141.1" not in text:
+            path.write_text(text.rstrip() + DEPENDENCY_NOTE + "\n", encoding="utf-8")
 
 
 def main() -> None:
@@ -90,12 +123,14 @@ def main() -> None:
         sys.stderr.write(stage2.stdout.decode("utf-8", errors="replace"))
         fail(f"second-stage patch exited {stage2.returncode}")
 
+    harden_dependencies(dest)
     deleted = dest / ".github/workflows/build-matrix.yml"
     if deleted.exists():
         deleted.unlink()
     clean_generated(dest)
     invariants = {
         "VERSION": "5.6",
+        "backend/requirements.txt": "starlette==1.6.0",
         "android/build.gradle.kts": "versionCode = 56",
         "android/src/main/java/com/potato/jarvis/accessibility/PotatoAccessibilityService.kt": "AccessibilityConsent.isAccepted",
         "android/src/main/java/com/potato/jarvis/core/Models.kt": "foregroundPackage",
@@ -124,6 +159,7 @@ def main() -> None:
         fail("obsolete build matrix survived")
     print(completed.stdout.decode("utf-8", errors="replace"))
     print(stage2.stdout.decode("utf-8", errors="replace"))
+    print("DEPENDENCY_SECURITY_REFRESH=PASS")
     print(f"V56_PROJECT_ROOT={dest}")
     print("V56_TRANSFORM=PASS")
 
