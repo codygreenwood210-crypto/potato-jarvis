@@ -38,7 +38,9 @@ jobs:
         run: |
           set -euo pipefail
           src="$RUNNER_TEMP/v56-source/POTATO-JARVIS-V5.6"
-          rsync -a --delete --exclude='.git/' "$src/" ./
+          # Keep this bootstrap workflow outside the automated rewrite. GitHub's
+          # GITHUB_TOKEN intentionally cannot create/update workflow files.
+          rsync -a --delete --exclude='.git/' --exclude='.github/' "$src/" ./
           printf '5.7\n' > VERSION
           python - <<'PY'
           from pathlib import Path
@@ -56,6 +58,9 @@ jobs:
           grep -F 'versionCode = 57' android/build.gradle.kts
           grep -F 'versionName = "5.7"' android/build.gradle.kts
           grep -F 'POTATO-JARVIS-V5.7' settings.gradle.kts
+          test -d android
+          test -d backend
+          test -s gradle/wrapper/gradle-wrapper.jar
 
       - name: Commit direct-source V5.7 baseline
         run: |
