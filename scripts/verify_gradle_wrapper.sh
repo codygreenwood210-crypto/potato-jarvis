@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROPS="$ROOT/gradle/wrapper/gradle-wrapper.properties"
+JAR="$ROOT/gradle/wrapper/gradle-wrapper.jar"
+GRADLEW="$ROOT/gradlew"
+EXPECTED_URL="https://services.gradle.org/distributions/gradle-8.13-bin.zip"
+EXPECTED_DIST="20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78"
+EXPECTED_JAR="81a82aaea5abcc8ff68b3dfcb58b3c3c429378efd98e7433460610fecd7ae45f"
+fail() { echo "GRADLE_WRAPPER=FAIL: $1" >&2; exit 1; }
+[[ -f "$PROPS" ]] || fail "missing wrapper properties"
+[[ -f "$JAR" ]] || fail "missing wrapper JAR"
+DIST_URL="$(sed -n 's/^[[:space:]]*distributionUrl[[:space:]]*=[[:space:]]*//p' "$PROPS" | tail -n1 | sed 's/\\:/:/g')"
+DIST_SHA="$(sed -n 's/^[[:space:]]*distributionSha256Sum[[:space:]]*=[[:space:]]*//p' "$PROPS" | tail -n1 | tr -d '[:space:]')"
+[[ "$DIST_URL" == "$EXPECTED_URL" ]] || fail "unexpected distribution URL: $DIST_URL"
+[[ "$DIST_SHA" == "$EXPECTED_DIST" ]] || fail "Gradle 8.13 distribution checksum mismatch"
+[[ -x "$GRADLEW" ]] || fail "gradlew is not executable"
+sh -n "$GRADLEW" || fail "gradlew shell syntax error"
+ACTUAL="$(sha256sum "$JAR" | awk '{print $1}')"
+[[ "$ACTUAL" == "$EXPECTED_JAR" ]] || fail "official Gradle 8.13 wrapper JAR checksum mismatch"
+echo "GRADLE_WRAPPER=PASS Gradle 8.13 distribution checksum property and official wrapper JAR verified"

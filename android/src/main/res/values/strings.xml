@@ -1,0 +1,3 @@
+<resources>
+    <string name="potato_accessibility_service_description">Optional foreground-app context. POTATO sees only the current app package name; it cannot read screen text, click controls, type, or perform gestures.</string>
+</resources>

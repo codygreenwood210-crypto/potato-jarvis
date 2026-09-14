@@ -1,0 +1,28 @@
+# Gradle / Android build output
+.gradle/
+**/build/
+local.properties
+
+# IDE
+.idea/
+*.iml
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+backend/.env
+
+# Secrets / signing
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+
+# Generated release artifacts
+dist/
+*.apk
+*.aab
