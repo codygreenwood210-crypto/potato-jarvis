@@ -32,17 +32,13 @@ jobs:
               raise SystemExit(f'expected 5 payload parts, found {len(parts)}')
           encoded = ''.join(p.read_text(encoding='ascii').strip() for p in parts)
           compressed = base64.b64decode(encoded, validate=True)
-          compressed_sha = hashlib.sha256(compressed).hexdigest()
-          expected_compressed = 'dc1cd53b8cc68228ec6e12e86744b21a64c3216099d6fedc70a91186b0380577'
-          if compressed_sha != expected_compressed:
-              raise SystemExit(f'compressed payload SHA mismatch: {compressed_sha}')
           patch = lzma.decompress(compressed)
           patch_sha = hashlib.sha256(patch).hexdigest()
           expected_patch = '553c9b906f19be2653b3655b89864ac58e61484abce3f1c205e98692c4ca5d7f'
           if patch_sha != expected_patch:
               raise SystemExit(f'patch SHA mismatch: {patch_sha}')
           Path('/tmp/v57.patch').write_bytes(patch)
-          print(f'V57_PAYLOAD=PASS bytes={len(patch)} sha256={patch_sha}')
+          print(f'V57_PAYLOAD=PASS compressed_sha256={hashlib.sha256(compressed).hexdigest()} bytes={len(patch)} sha256={patch_sha}')
           PY
 
       - name: Apply audited V5.7 source changes
