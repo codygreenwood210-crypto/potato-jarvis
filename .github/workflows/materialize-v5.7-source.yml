@@ -13,60 +13,83 @@ permissions:
 
 jobs:
   materialize:
-    if: "!contains(github.event.head_commit.message, '[v57-canonical]')"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Checkout branch
+      - name: Checkout direct V5.7 baseline
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
 
-      - name: Download authoritative V5.6 source artifact
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Verify and decode audited V5.7 payload
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/v56-artifact" "$RUNNER_TEMP/v56-source"
-          gh run download 34616638024 --repo "$GITHUB_REPOSITORY" -n POTATO-JARVIS-FINAL-V5.6 -D "$RUNNER_TEMP/v56-artifact"
-          echo '0a1cca710c71644036a0879f5080859d37d449f716eb864f9a35096db8198ea6  '"$RUNNER_TEMP/v56-artifact/POTATO-JARVIS-FINAL-V5.6.zip" | sha256sum -c -
-          unzip -t "$RUNNER_TEMP/v56-artifact/POTATO-JARVIS-FINAL-V5.6.zip" >/dev/null
-          unzip -q "$RUNNER_TEMP/v56-artifact/POTATO-JARVIS-FINAL-V5.6.zip" -d "$RUNNER_TEMP/v56-source"
-          test -d "$RUNNER_TEMP/v56-source/POTATO-JARVIS-V5.6"
-
-      - name: Install direct canonical source
-        run: |
-          set -euo pipefail
-          src="$RUNNER_TEMP/v56-source/POTATO-JARVIS-V5.6"
-          # Keep this bootstrap workflow outside the automated rewrite. GitHub's
-          # GITHUB_TOKEN intentionally cannot create/update workflow files.
-          rsync -a --delete --exclude='.git/' --exclude='.github/' "$src/" ./
-          printf '5.7\n' > VERSION
           python - <<'PY'
           from pathlib import Path
-          p = Path('android/build.gradle.kts')
-          s = p.read_text(encoding='utf-8')
-          s = s.replace('versionCode = 56', 'versionCode = 57')
-          s = s.replace('versionName = "5.6"', 'versionName = "5.7"')
-          s = s.replace('"\\"5.6\\""', '"\\"5.7\\""')
-          p.write_text(s, encoding='utf-8')
-          q = Path('settings.gradle.kts')
-          q.write_text(q.read_text(encoding='utf-8').replace('POTATO-JARVIS-V5.6', 'POTATO-JARVIS-V5.7'), encoding='utf-8')
+          import base64, hashlib, lzma
+          parts = sorted(Path('.v57-stage').glob('part*.txt'))
+          if len(parts) != 5:
+              raise SystemExit(f'expected 5 payload parts, found {len(parts)}')
+          encoded = ''.join(p.read_text(encoding='ascii').strip() for p in parts)
+          compressed = base64.b64decode(encoded, validate=True)
+          compressed_sha = hashlib.sha256(compressed).hexdigest()
+          expected_compressed = 'dc1cd53b8cc68228ec6e12e86744b21a64c3216099d6fedc70a91186b0380577'
+          if compressed_sha != expected_compressed:
+              raise SystemExit(f'compressed payload SHA mismatch: {compressed_sha}')
+          patch = lzma.decompress(compressed)
+          patch_sha = hashlib.sha256(patch).hexdigest()
+          expected_patch = '553c9b906f19be2653b3655b89864ac58e61484abce3f1c205e98692c4ca5d7f'
+          if patch_sha != expected_patch:
+              raise SystemExit(f'patch SHA mismatch: {patch_sha}')
+          Path('/tmp/v57.patch').write_bytes(patch)
+          print(f'V57_PAYLOAD=PASS bytes={len(patch)} sha256={patch_sha}')
           PY
-          rm -f SOURCE_MANIFEST.sha256
-          test "$(cat VERSION)" = 5.7
+
+      - name: Apply audited V5.7 source changes
+        run: |
+          set -euo pipefail
+          git apply --check /tmp/v57.patch
+          git apply /tmp/v57.patch
+          rm -rf .v57-stage
+          test "$(cat VERSION)" = '5.7'
           grep -F 'versionCode = 57' android/build.gradle.kts
           grep -F 'versionName = "5.7"' android/build.gradle.kts
           grep -F 'POTATO-JARVIS-V5.7' settings.gradle.kts
-          test -d android
-          test -d backend
-          test -s gradle/wrapper/gradle-wrapper.jar
+          test -s android/src/main/java/com/potato/jarvis/core/BackendUrlPolicy.kt
+          test -s android/src/androidTest/java/com/potato/jarvis/MainActivitySmokeTest.kt
+          test -s docs/POTATO_V5.7_MASTER_REPAIR_ROADMAP.md
+          test -s scripts/generate_final_manifest.py
+          test ! -f SOURCE_MANIFEST.sha256
 
-      - name: Commit direct-source V5.7 baseline
+      - name: Source integrity gates
+        run: |
+          set -euo pipefail
+          chmod +x scripts/*.py scripts/*.sh backend/run.sh gradlew
+          python -m compileall -q backend scripts
+          python scripts/scan_secrets.py .
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          xmls = sorted(Path('android/src').rglob('*.xml'))
+          for p in xmls:
+              ET.parse(p)
+          print(f'ANDROID_XML_PARSE=PASS files={len(xmls)}')
+          active = [*Path('android/src').rglob('*.kt'), *Path('backend').rglob('*.py')]
+          bad = []
+          for p in active:
+              text = p.read_text(encoding='utf-8')
+              if any(marker in text for marker in ('<<<<<<<', '>>>>>>>')):
+                  bad.append(str(p))
+          if bad:
+              raise SystemExit('merge-conflict markers: ' + ', '.join(bad))
+          print('ACTIVE_SOURCE_CONFLICT_SCAN=PASS')
+          PY
+
+      - name: Commit ordinary V5.7 source
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
-          git commit -m '[v57-canonical] Materialize verified V5.6 source as direct V5.7 baseline'
+          git commit -m '[v57-source] Apply audited V5.7 repairs to canonical source'
           git push origin HEAD:verify-v5.7
