@@ -1,0 +1,151 @@
+name: Verify POTATO V5.7
+
+on:
+  push:
+    branches: [verify-v5.7]
+    paths-ignore:
+      - '.github/workflows/materialize-v5.7-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: potato-v5.7-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - name: Checkout canonical V5.7 source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+
+      - name: Source integrity
+        run: |
+          set -euo pipefail
+          test "$(cat VERSION)" = '5.7'
+          grep -F 'versionCode = 57' android/build.gradle.kts
+          grep -F 'versionName = "5.7"' android/build.gradle.kts
+          grep -F 'compileSdk = 36' android/build.gradle.kts
+          grep -F 'targetSdk = 36' android/build.gradle.kts
+          test -s android/src/main/java/com/potato/jarvis/core/BackendUrlPolicy.kt
+          test ! -d .v57-stage
+          chmod +x gradlew scripts/*.sh scripts/*.py backend/run.sh
+          python -m compileall -q backend scripts
+          python scripts/scan_secrets.py .
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for p in Path('android/src').rglob('*.xml'): ET.parse(p)
+          bad=[]
+          for p in [*Path('android/src').rglob('*.kt'), *Path('backend').rglob('*.py')]:
+              text=p.read_text(encoding='utf-8')
+              if '<<<<<<<' in text or '>>>>>>>' in text: bad.append(str(p))
+          if bad: raise SystemExit('merge markers: '+', '.join(bad))
+          print('SOURCE_INTEGRITY=PASS')
+          PY
+
+      - name: Verify Gradle wrapper
+        run: ./scripts/verify_gradle_wrapper.sh
+
+      - name: Install and audit backend dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install -r backend/requirements.txt pip-audit==2.10.1
+          pip-audit -r backend/requirements.txt
+
+      - name: Backend tests
+        env:
+          POTATO_ENV: test
+        run: |
+          python -m compileall -q backend
+          python -m pytest -q backend/tests
+
+      - name: Android unit tests
+        run: ./gradlew :android:testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Require actual Android tests
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          reports=list(Path('android/build/test-results/testDebugUnitTest').glob('TEST-*.xml'))
+          if not reports: raise SystemExit('No Android JUnit reports')
+          tests=failures=errors=0
+          for p in reports:
+              r=ET.parse(p).getroot(); tests+=int(r.attrib.get('tests','0')); failures+=int(r.attrib.get('failures','0')); errors+=int(r.attrib.get('errors','0'))
+          if tests <= 0 or failures or errors: raise SystemExit(f'Android tests not clean: {tests=} {failures=} {errors=}')
+          print(f'ANDROID_TESTS_EXECUTED={tests}')
+          PY
+
+      - name: Android debug build
+        run: |
+          ./gradlew :android:assembleDebug --no-daemon --stacktrace
+          test -s android/build/outputs/apk/debug/android-debug.apk
+
+      - name: Android lint
+        run: |
+          ./gradlew :android:lint --no-daemon --max-workers=1 -Dorg.gradle.jvmargs='-Xmx3g -Dfile.encoding=UTF-8' --stacktrace
+          test -s android/build/reports/lint-results-debug.html
+
+      - name: Release AAB
+        run: |
+          ./gradlew :android:bundleRelease --no-daemon --stacktrace
+          test -s android/build/outputs/bundle/release/android-release.aab
+
+      - name: Package clean source and hashes
+        run: |
+          python scripts/package_clean_source.py "$RUNNER_TEMP/POTATO-JARVIS-FINAL-V5.7.zip"
+          python scripts/verify_source_archive.py "$RUNNER_TEMP/POTATO-JARVIS-FINAL-V5.7.zip"
+          unzip -t "$RUNNER_TEMP/POTATO-JARVIS-FINAL-V5.7.zip" >/dev/null
+          sha256sum android/build/outputs/apk/debug/*.apk | tee "$RUNNER_TEMP/apk.sha256"
+          sha256sum android/build/outputs/bundle/release/*.aab | tee "$RUNNER_TEMP/aab.sha256"
+          sha256sum "$RUNNER_TEMP/POTATO-JARVIS-FINAL-V5.7.zip" | tee "$RUNNER_TEMP/source.sha256"
+
+      - name: Upload V5.7 debug APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: potato-v5.7-debug-apk
+          path: android/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload V5.7 release AAB
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: potato-v5.7-release-aab-unsigned
+          path: android/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+
+      - name: Upload complete V5.7 source
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: POTATO-JARVIS-FINAL-V5.7
+          path: ${{ runner.temp }}/POTATO-JARVIS-FINAL-V5.7.zip
+          if-no-files-found: error
+
+      - name: Upload verification reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: potato-v5.7-verification-reports
+          path: |
+            android/build/reports/tests/
+            android/build/test-results/
+            android/build/reports/lint-results-debug.html
+            android/build/reports/lint-results-debug.xml
+            ${{ runner.temp }}/*.sha256
+          if-no-files-found: warn
