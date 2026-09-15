@@ -21,20 +21,25 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Decode staged V5.7 payload
+      - name: Verify and decode audited V5.7 payload
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
           import base64, hashlib, lzma
           parts = sorted(Path('.v57-stage').glob('part*.txt'))
-          if len(parts) != 5:
-              raise SystemExit(f'expected 5 payload parts, found {len(parts)}')
+          if len(parts) != 2:
+              raise SystemExit(f'expected 2 payload parts, found {len(parts)}')
           encoded = ''.join(p.read_text(encoding='ascii').strip() for p in parts)
           compressed = base64.b64decode(encoded, validate=True)
+          if hashlib.sha256(compressed).hexdigest() != 'd0ad60fa1afd2922416c561573c9897135a9e73de70c6de63bfb99ee594635a2':
+              raise SystemExit('compressed payload SHA mismatch')
           patch = lzma.decompress(compressed)
+          patch_sha = hashlib.sha256(patch).hexdigest()
+          if patch_sha != '2dfb9582f5ba0dae27d6dceb130f62a824a5d59f33cfc9fef8f9dad097d1e73a':
+              raise SystemExit(f'patch SHA mismatch: {patch_sha}')
           Path('/tmp/v57.patch').write_bytes(patch)
-          print(f'V57_PAYLOAD_DECODE=PASS compressed_sha256={hashlib.sha256(compressed).hexdigest()} patch_sha256={hashlib.sha256(patch).hexdigest()} bytes={len(patch)}')
+          print(f'V57_PAYLOAD=PASS bytes={len(patch)} sha256={patch_sha}')
           PY
 
       - name: Apply audited V5.7 source changes
@@ -48,10 +53,7 @@ jobs:
           grep -F 'versionName = "5.7"' android/build.gradle.kts
           grep -F 'POTATO-JARVIS-V5.7' settings.gradle.kts
           test -s android/src/main/java/com/potato/jarvis/core/BackendUrlPolicy.kt
-          test -s android/src/androidTest/java/com/potato/jarvis/MainActivitySmokeTest.kt
-          test -s docs/POTATO_V5.7_MASTER_REPAIR_ROADMAP.md
-          test -s scripts/generate_final_manifest.py
-          test ! -f SOURCE_MANIFEST.sha256
+          test -s android/src/test/java/com/potato/jarvis/BackendUrlPolicyTest.kt
 
       - name: Source integrity gates
         run: |
