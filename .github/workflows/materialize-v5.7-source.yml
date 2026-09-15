@@ -45,8 +45,9 @@ jobs:
       - name: Apply audited V5.7 source changes
         run: |
           set -euo pipefail
-          git apply --check /tmp/v57.patch
-          git apply /tmp/v57.patch
+          # VERSION/settings/android build metadata were already advanced to 5.7 by the staging branch.
+          git apply --check --exclude=VERSION --exclude=settings.gradle.kts --exclude=android/build.gradle.kts /tmp/v57.patch
+          git apply --exclude=VERSION --exclude=settings.gradle.kts --exclude=android/build.gradle.kts /tmp/v57.patch
           rm -rf .v57-stage
           test "$(cat VERSION)" = '5.7'
           grep -F 'versionCode = 57' android/build.gradle.kts
