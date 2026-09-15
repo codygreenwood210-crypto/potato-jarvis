@@ -9,11 +9,13 @@ import com.potato.jarvis.core.SecureTokenStore
 import com.potato.jarvis.db.JarvisDb
 
 class PotatoWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
-    override suspend fun doWork(): Result = try {
+    override suspend fun doWork(): Result {
         val db = JarvisDb(applicationContext)
+        return try {
+        val configuredUrl = db.getSetting("backend_url").trim()
+        if (configuredUrl.isBlank()) return Result.success()
         val token = SecureTokenStore(applicationContext).read()
-        val url = db.getSetting("backend_url", JarvisApi.DEFAULT_BASE_URL)
-        val api = JarvisApi(url, token)
+        val api = JarvisApi(configuredUrl, token)
         api.diagnostics()
         if (PotatoNotificationManager(applicationContext).canPost()) {
             api.notifications(unreadOnly = true, limit = 50).forEach { item ->
@@ -38,5 +40,8 @@ class PotatoWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
         Result.failure()
     } catch (_: IllegalStateException) {
         Result.failure()
+    } finally {
+        db.close()
+    }
     }
 }

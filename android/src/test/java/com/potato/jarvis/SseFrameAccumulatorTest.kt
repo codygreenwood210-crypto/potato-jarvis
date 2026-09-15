@@ -3,6 +3,7 @@ package com.potato.jarvis
 import com.potato.jarvis.core.SseFrameAccumulator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class SseFrameAccumulatorTest {
@@ -30,4 +31,9 @@ class SseFrameAccumulatorTest {
         assertNull(parser.accept("id: 123"))
         assertNull(parser.accept(""))
     }
+    @Test fun rejectsOversizedFrame() {
+        val parser = SseFrameAccumulator(maxFrameChars = 5)
+        assertThrows(IllegalArgumentException::class.java) { parser.accept("data: 123456") }
+    }
+
 }

@@ -8,6 +8,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.potato.jarvis.automation.PotatoWorker
 import com.potato.jarvis.core.ApiException
+import com.potato.jarvis.core.BackendUrlPolicy
 import com.potato.jarvis.core.Approval
 import com.potato.jarvis.core.AutomationItem
 import com.potato.jarvis.core.ChatMessage
@@ -38,6 +39,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
@@ -121,11 +123,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     init {
         migrateLegacyToken()
         WorkManager.getInstance(app).enqueueUniquePeriodicWork(
-            "potato-health",
-            ExistingPeriodicWorkPolicy.UPDATE,
-            PeriodicWorkRequestBuilder<PotatoWorker>(6, TimeUnit.HOURS).build(),
-        )
-        WorkManager.getInstance(app).enqueueUniquePeriodicWork(
             "potato-notifications",
             ExistingPeriodicWorkPolicy.UPDATE,
             PeriodicWorkRequestBuilder<PotatoWorker>(15, TimeUnit.MINUTES).build(),
@@ -154,6 +151,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         runCatching {
             val candidate = JarvisApi(clean, token.trim().ifBlank { null })
             val health = candidate.health()
+            candidate.sessions() // authenticated endpoint: rejects an invalid bearer token
             Triple(candidate, health, token.trim())
         }.fold(
             onSuccess = { (candidate, health, suppliedToken) ->
@@ -554,6 +552,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         streamJob?.cancel()
         visionProcessor.close()
+        db.close()
         super.onCleared()
     }
 
@@ -564,14 +563,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     fun clearToken() { tokenStore.clear(); api = buildApi(); update { it.copy(setupRequired = true, online = false, connectionMessage = "API token cleared. Reconnect with a token or explicitly configured anonymous backend.") }; health() }
     fun appContext() = getApplication<Application>()
 
-    private fun normalizeUrl(url: String): String {
-        val clean = url.trim().trimEnd('/')
-        require(clean.startsWith("http://") || clean.startsWith("https://")) { "Backend URL must start with http:// or https://." }
-        if (!com.potato.jarvis.BuildConfig.ALLOW_HTTP_BACKEND && clean.startsWith("http://")) {
-            error("Release builds require an HTTPS backend URL.")
-        }
-        return clean
-    }
+    private fun normalizeUrl(url: String): String = BackendUrlPolicy.normalize(url, com.potato.jarvis.BuildConfig.ALLOW_HTTP_BACKEND)
 
     private fun friendlyError(error: Throwable): String = when (error) {
         is ApiException -> error.message ?: "Backend request failed."
@@ -582,5 +574,5 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         else -> error.message ?: "POTATO request failed."
     }
 
-    private fun update(transform: (State) -> State) { _state.value = transform(_state.value) }
+    private fun update(transform: (State) -> State) { _state.update(transform) }
 }

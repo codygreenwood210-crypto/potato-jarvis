@@ -54,8 +54,20 @@ class JarvisDb(context: Context) : SQLiteOpenHelper(context, "potato_local.db", 
     }
 
     fun replaceMessages(items: List<ChatMessage>) {
-        writableDatabase.delete("messages", null, null)
-        items.forEach { save(it) }
+        val database = writableDatabase
+        database.beginTransaction()
+        try {
+            database.delete("messages", null, null)
+            items.forEach { message ->
+                database.execSQL(
+                    "INSERT INTO messages(role,content,created_at) VALUES(?,?,?)",
+                    arrayOf(message.role, message.content, message.createdAt),
+                )
+            }
+            database.setTransactionSuccessful()
+        } finally {
+            database.endTransaction()
+        }
     }
 
 }

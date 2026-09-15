@@ -25,7 +25,7 @@ client = TestClient(main.app)
 def test_health_and_schema():
     response = client.get("/v1/health")
     assert response.status_code == 200
-    assert response.json()["version"] == "5.6"
+    assert response.json()["version"] == "5.7"
     with main.db() as connection:
         tables = {row["name"] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {"sessions", "messages", "memories", "approvals", "tool_runs", "security_events", "audit_events", "tasks", "task_steps", "plans", "automations", "devices", "uploaded_files", "notifications", "smart_home_homes", "smart_home_devices", "proactive_settings", "agents", "agent_runs"} <= tables
@@ -1220,7 +1220,8 @@ def test_proactive_settings_and_overdue_suggestion():
 def test_proactive_disabled_and_quiet_hours(monkeypatch):
     client.put("/v1/proactive/settings", json={"enabled": False, "mode": "helpful", "daily_limit": 5, "quiet_start": 0, "quiet_end": 23})
     assert client.post("/v1/proactive/run").json()["reason"] == "disabled"
-    client.put("/v1/proactive/settings", json={"enabled": True, "mode": "helpful", "daily_limit": 5, "quiet_start": 0, "quiet_end": 23})
+    hour = main.datetime.now(main.timezone.utc).hour
+    client.put("/v1/proactive/settings", json={"enabled": True, "mode": "helpful", "daily_limit": 5, "quiet_start": hour, "quiet_end": (hour + 1) % 24})
     assert client.post("/v1/proactive/run").json()["reason"] == "quiet_hours"
     client.put("/v1/proactive/settings", json={"enabled": True, "mode": "permission_based", "daily_limit": 5, "quiet_start": 22, "quiet_end": 7})
 
@@ -1450,3 +1451,35 @@ def test_v56_provider_base_rejects_embedded_credentials_or_query(monkeypatch):
         OpenAIResponsesProvider("test-key", "https://user:pass@api.openai.com/v1")
     with pytest.raises(RuntimeError, match="must not contain credentials"):
         OpenAIResponsesProvider("test-key", "https://api.openai.com/v1?x=1")
+
+
+def test_v57_device_credentials_are_encrypted_and_not_exposed():
+    payload = {"name": "Lamp", "kind": "http", "config": {"base_url": "https://192.0.2.1", "token": "top-secret", "actions": {"on": "/on"}}}
+    created = client.post("/v1/devices", json=payload)
+    assert created.status_code == 200
+    did = created.json()["id"]
+    with main.db() as connection:
+        raw = connection.execute("SELECT config_json FROM devices WHERE id=?", (did,)).fetchone()["config_json"]
+    assert "top-secret" not in raw
+    assert main.CREDENTIAL_PREFIX in raw
+    public = client.get("/v1/devices").json()["devices"]
+    item = next(row for row in public if row["id"] == did)
+    assert "config_json" not in item
+    assert "token" not in item["config"]
+    assert item["config"]["token_configured"] is True
+
+
+def test_v57_smart_home_token_is_encrypted_at_rest():
+    response = client.post("/v1/smart-home/homes", json={"name":"Home","provider":"home_assistant","base_url":"https://192.0.2.2","token":"ha-secret"})
+    assert response.status_code == 200
+    hid = response.json()["id"]
+    with main.db() as connection:
+        token = connection.execute("SELECT token FROM smart_home_homes WHERE id=?", (hid,)).fetchone()["token"]
+    assert token != "ha-secret"
+    assert token.startswith(main.CREDENTIAL_PREFIX)
+    assert main._decrypt_secret(token) == "ha-secret"
+
+
+def test_v57_sqlite_secure_delete_enabled():
+    with main.db() as connection:
+        assert connection.execute("PRAGMA secure_delete").fetchone()[0] == 1

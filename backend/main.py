@@ -25,6 +25,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from typing import Any, Optional
 
 from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.asymmetric import ec
 from urllib.parse import urlparse
 
@@ -38,7 +39,7 @@ from pydantic import BaseModel, Field
 
 load_dotenv(Path(__file__).with_name(".env"))
 
-VERSION = "5.6"
+VERSION = "5.7"
 APP_NAME = "POTATO"
 DEFAULT_MODEL = "gpt-5.6-luna"
 MAX_CHAT_MESSAGE = 12_000
@@ -222,8 +223,86 @@ def db() -> sqlite3.Connection:
     except OSError:
         pass
     connection.execute("PRAGMA foreign_keys=ON")
+    connection.execute("PRAGMA secure_delete=ON")
     connection.execute("PRAGMA busy_timeout=20000")
     return connection
+
+
+CREDENTIAL_PREFIX = "enc:v1:"
+
+
+def _credential_key() -> bytes:
+    raw = os.getenv("POTATO_CREDENTIAL_KEY", "").strip()
+    environment = os.getenv("POTATO_ENV", "development").strip().lower()
+    if raw:
+        try:
+            key = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
+        except (ValueError, binascii.Error) as exc:
+            raise RuntimeError("POTATO_CREDENTIAL_KEY must be URL-safe base64") from exc
+        if len(key) != 32:
+            raise RuntimeError("POTATO_CREDENTIAL_KEY must decode to exactly 32 bytes")
+        return key
+    if environment == "production":
+        raise RuntimeError("Production credential encryption requires POTATO_CREDENTIAL_KEY")
+    key_path = ROOT / ".credential-key"
+    if key_path.exists():
+        key = key_path.read_bytes()
+        if len(key) != 32:
+            raise RuntimeError("Local credential key has invalid length")
+        return key
+    key = os.urandom(32)
+    key_path.write_bytes(key)
+    try:
+        key_path.chmod(0o600)
+    except OSError:
+        pass
+    return key
+
+
+def _encrypt_secret(value: str) -> str:
+    if not value or value.startswith(CREDENTIAL_PREFIX):
+        return value
+    nonce = os.urandom(12)
+    encrypted = AESGCM(_credential_key()).encrypt(nonce, value.encode("utf-8"), b"potato-v57")
+    return CREDENTIAL_PREFIX + base64.urlsafe_b64encode(nonce + encrypted).decode("ascii")
+
+
+def _decrypt_secret(value: str) -> str:
+    if not value or not value.startswith(CREDENTIAL_PREFIX):
+        return value
+    try:
+        blob = base64.urlsafe_b64decode(value[len(CREDENTIAL_PREFIX):])
+        return AESGCM(_credential_key()).decrypt(blob[:12], blob[12:], b"potato-v57").decode("utf-8")
+    except Exception as exc:
+        raise RuntimeError("Stored credential could not be decrypted") from exc
+
+
+def _protect_device_config(config: dict[str, Any]) -> dict[str, Any]:
+    protected = dict(config)
+    if "token" in protected:
+        protected["token"] = _encrypt_secret(str(protected.get("token", "")))
+    return protected
+
+
+def _unprotect_device_config(config: dict[str, Any]) -> dict[str, Any]:
+    plain = dict(config)
+    if "token" in plain:
+        plain["token"] = _decrypt_secret(str(plain.get("token", "")))
+    return plain
+
+
+def _migrate_credentials(connection: sqlite3.Connection) -> None:
+    for row in connection.execute("SELECT id,config_json FROM devices").fetchall():
+        try:
+            config = json.loads(row["config_json"])
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if isinstance(config, dict) and config.get("token") and not str(config["token"]).startswith(CREDENTIAL_PREFIX):
+            connection.execute("UPDATE devices SET config_json=? WHERE id=?", (json.dumps(_protect_device_config(config)), row["id"]))
+    for row in connection.execute("SELECT id,token FROM smart_home_homes").fetchall():
+        token = str(row["token"] or "")
+        if token and not token.startswith(CREDENTIAL_PREFIX):
+            connection.execute("UPDATE smart_home_homes SET token=? WHERE id=?", (_encrypt_secret(token), row["id"]))
 
 
 def _columns(connection: sqlite3.Connection, table: str) -> set[str]:
@@ -492,6 +571,7 @@ def init_db() -> None:
             )
         connection.execute("CREATE INDEX IF NOT EXISTS idx_automation_runs_automation_started ON automation_runs(automation_id, started_at)")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_approvals_source ON approvals(source_type, source_id, status)")
+        _migrate_credentials(connection)
 
 
 init_db()
@@ -2401,7 +2481,7 @@ def device_action(device_id: str, action: str, payload: dict[str, Any]) -> dict[
     if row["kind"] != "http":
         return {"success": False, "error": "unsupported device adapter"}
     try:
-        config = json.loads(row["config_json"])
+        config = _unprotect_device_config(json.loads(row["config_json"]))
         if not isinstance(payload, dict):
             return {"success": False, "error": "payload must be an object"}
         payload_size = len(json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
@@ -2421,7 +2501,7 @@ def device_action(device_id: str, action: str, payload: dict[str, Any]) -> dict[
     try:
         with httpx.Client(timeout=15, follow_redirects=False) as client:
             response = client.post(url, json=payload, headers=headers)
-        return {"success": 200 <= response.status_code < 300, "status_code": response.status_code, "response": response.text[:MAX_DEVICE_RESPONSE_BYTES]}
+        return {"success": 200 <= response.status_code < 300, "status_code": response.status_code, "response_bytes": min(len(response.content), MAX_DEVICE_RESPONSE_BYTES)}
     except Exception as exc:
         return {"success": False, "error": str(exc)}
 
@@ -2450,9 +2530,10 @@ def _ha_request(base_url: str, token: str, method: str, path: str, payload: Opti
         raise ValueError("invalid smart-home API path")
     with httpx.Client(timeout=15, follow_redirects=False) as client:
         response = client.request(method, base + path, headers=_smart_home_headers(token), json=payload)
-    text = response.text[:MAX_SMART_HOME_RESPONSE_BYTES]
+    raw = response.content[:MAX_SMART_HOME_RESPONSE_BYTES]
+    text = raw.decode(response.encoding or "utf-8", errors="replace")
     try:
-        data = response.json() if text else None
+        data = json.loads(text) if text else None
     except ValueError:
         data = text
     return response.status_code, data
@@ -2475,7 +2556,7 @@ def smart_home_state(home_id: str) -> dict[str, Any]:
     if home["provider"] != "home_assistant":
         return {"success": False, "error": "unsupported smart-home provider"}
     try:
-        status, data = _ha_request(home["base_url"], home["token"], "GET", "/api/states")
+        status, data = _ha_request(home["base_url"], _decrypt_secret(home["token"]), "GET", "/api/states")
         if not 200 <= status < 300 or not isinstance(data, list):
             return {"success": False, "error": f"provider returned HTTP {status}"}
         allowed = {"light", "switch", "climate", "sensor", "binary_sensor", "lock"}
@@ -2529,9 +2610,9 @@ def smart_home_action(home_id: str, device_id: str, action: str, payload: dict[s
             allowed |= {"brightness_pct", "rgb_color", "color_temp_kelvin"}
         clean_payload = {k: v for k, v in clean_payload.items() if k in allowed}
     try:
-        status, data = _ha_request(home["base_url"], home["token"], "POST", f"/api/services/{domain}/{service}", clean_payload)
+        status, data = _ha_request(home["base_url"], _decrypt_secret(home["token"]), "POST", f"/api/services/{domain}/{service}", clean_payload)
         ok = 200 <= status < 300
-        return {"success": ok, "status_code": status, "home_id": home_id, "device_id": device_id, "action": action, "response": data if isinstance(data, (dict, list)) else str(data)[:MAX_SMART_HOME_RESPONSE_BYTES], "error": None if ok else f"provider returned HTTP {status}"}
+        return {"success": ok, "status_code": status, "home_id": home_id, "device_id": device_id, "action": action, "error": "" if ok else f"provider returned HTTP {status}"}
     except (ValueError, httpx.HTTPError, OSError) as exc:
         return {"success": False, "home_id": home_id, "device_id": device_id, "action": action, "error": str(exc)[:1000]}
 
@@ -2919,6 +3000,7 @@ def privacy_export(authorization: Optional[str] = Header(default=None)) -> dict[
         ]
     trace_id = str(uuid.uuid4())
     audit(trace_id, "privacy_exported", {"tables": len(data), "records": sum(len(v) for v in data.values())})
+    data["filesystem"] = {"notes": [p.name for p in NOTES.glob("*") if p.is_file()], "private_files": [p.name for p in FILES.glob("*") if p.is_file()]}
     return {"version": VERSION, "exported_at": now_iso(), "data": data}
 
 
@@ -2936,10 +3018,12 @@ def privacy_delete(item: PrivacyDeleteIn, authorization: Optional[str] = Header(
     removed_files = 0
     with db() as connection:
         paths = [str(row["path"]) for row in connection.execute("SELECT path FROM uploaded_files").fetchall()]
+    paths.extend(str(p) for root in (NOTES, FILES) for p in root.rglob("*") if p.is_file())
     for raw_path in paths:
         try:
             candidate = Path(raw_path).resolve()
-            candidate.relative_to(FILES)
+            if not (candidate.is_relative_to(FILES) or candidate.is_relative_to(NOTES)):
+                continue
             if candidate.is_file():
                 candidate.unlink()
                 removed_files += 1
@@ -2956,6 +3040,9 @@ def privacy_delete(item: PrivacyDeleteIn, authorization: Optional[str] = Header(
     with db() as connection:
         for table in delete_order:
             deleted += connection.execute(f"DELETE FROM {table}").rowcount
+    with db() as connection:
+        connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        connection.execute("VACUUM")
     return {"deleted": True, "records_deleted": deleted, "files_deleted": removed_files}
 
 
@@ -3921,7 +4008,7 @@ def add_smart_home(item: dict[str, Any], authorization: Optional[str] = Header(d
             raise HTTPException(409, "smart-home home limit reached")
         home_id = str(uuid.uuid4())
         stamp = now_iso()
-        connection.execute("INSERT INTO smart_home_homes VALUES(?,?,?,?,?,?,?)", (home_id, name, provider, base_url.rstrip("/"), token, stamp, stamp))
+        connection.execute("INSERT INTO smart_home_homes VALUES(?,?,?,?,?,?,?)", (home_id, name, provider, base_url.rstrip("/"), _encrypt_secret(token), stamp, stamp))
     audit(str(uuid.uuid4()), "smart_home_home_added", {"home_id": home_id, "provider": provider})
     return {"id": home_id}
 
@@ -3973,7 +4060,7 @@ def devices(authorization: Optional[str] = Header(default=None)) -> dict[str, An
         if isinstance(config, dict) and "token" in config:
             config = dict(config)
             config["token_configured"] = bool(str(config.pop("token", "")).strip())
-        public_devices.append({**dict(row), "config": config})
+        public_devices.append({"id": row["id"], "name": row["name"], "kind": row["kind"], "created_at": row["created_at"], "config": config})
     return {"devices": public_devices}
 
 
@@ -4008,7 +4095,7 @@ def add_device(item: DeviceIn, authorization: Optional[str] = Header(default=Non
             raise HTTPException(400, str(exc)) from exc
     did = str(uuid.uuid4())
     with db() as connection:
-        connection.execute("INSERT INTO devices VALUES(?,?,?,?,?)", (did, item.name, item.kind, json.dumps(item.config), now_iso()))
+        connection.execute("INSERT INTO devices VALUES(?,?,?,?,?)", (did, item.name, item.kind, json.dumps(_protect_device_config(item.config)), now_iso()))
     return {"id": did}
 
 

@@ -20,24 +20,10 @@ class JarvisApi(
         const val DEFAULT_BASE_URL = BuildConfig.DEFAULT_BACKEND_URL
         private const val CONNECT_TIMEOUT_MS = 12_000
         private const val READ_TIMEOUT_MS = 120_000
+        private const val MAX_RESPONSE_BYTES = 2_000_000
     }
 
-    private fun validatedBaseUrl(): String {
-        val clean = baseUrl.trim().trimEnd('/')
-        require(clean.isNotBlank()) { "Backend URL is not configured. Open Settings to connect POTATO." }
-        val parsed = runCatching { URL(clean) }.getOrElse {
-            error("Backend URL is invalid. Use http:// or https:// followed by a host.")
-        }
-        require(parsed.protocol == "http" || parsed.protocol == "https") {
-            "Backend URL must use http:// or https://."
-        }
-        if (!BuildConfig.ALLOW_HTTP_BACKEND) {
-            require(parsed.protocol == "https") {
-                "Release builds require an HTTPS backend URL."
-            }
-        }
-        return clean
-    }
+    private fun validatedBaseUrl(): String = BackendUrlPolicy.normalize(baseUrl, BuildConfig.ALLOW_HTTP_BACKEND)
 
     private fun connection(path: String, method: String, contentType: String = "application/json"): HttpURLConnection {
         val url = URL(validatedBaseUrl() + path)
@@ -56,7 +42,19 @@ class JarvisApi(
     private fun readResponse(connection: HttpURLConnection): String {
         val code = connection.responseCode
         val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-        val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        val text = stream?.use { input ->
+            val out = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            var total = 0
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                total += read
+                require(total <= MAX_RESPONSE_BYTES) { "Backend response exceeded the ${MAX_RESPONSE_BYTES}-byte safety limit." }
+                out.write(buffer, 0, read)
+            }
+            out.toString(StandardCharsets.UTF_8.name())
+        }.orEmpty()
         connection.disconnect()
         if (code !in 200..299) {
             val detail = runCatching { JSONObject(text).optString("detail") }.getOrNull().orEmpty()

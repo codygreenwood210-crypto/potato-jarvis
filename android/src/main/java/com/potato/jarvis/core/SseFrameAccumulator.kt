@@ -3,7 +3,7 @@ package com.potato.jarvis.core
 internal data class SseFrame(val eventType: String?, val data: String)
 
 /** Minimal Server-Sent Events frame accumulator used by the Android streaming client. */
-internal class SseFrameAccumulator {
+internal class SseFrameAccumulator(private val maxFrameChars: Int = 256_000) {
     private var eventType: String? = null
     private val dataLines = mutableListOf<String>()
 
@@ -13,7 +13,10 @@ internal class SseFrameAccumulator {
             null
         }
         line.startsWith("data:") -> {
-            dataLines += line.removePrefix("data:").removePrefix(" ")
+            val value = line.removePrefix("data:").removePrefix(" ")
+            val projected = dataLines.sumOf { it.length + 1 } + value.length
+            require(projected <= maxFrameChars) { "SSE frame exceeded safety limit." }
+            dataLines += value
             null
         }
         line.isBlank() -> flush()
