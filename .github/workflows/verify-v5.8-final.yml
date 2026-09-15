@@ -1,0 +1,287 @@
+name: Verify POTATO V5.8 Working Copy
+
+on:
+  push:
+    branches: [potato-v5.8-final]
+    paths-ignore:
+      - 'scripts/apply_v58_final.py'
+      - '.github/workflows/materialize-v5.8.yml'
+      - '.github/workflows/verify-v5.8-final.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: potato-v5.8-final-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-working-copy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - name: Checkout V5.8 source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+
+      - name: Source and theme integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat VERSION)" = '5.8'
+          grep -F 'versionCode = 58' android/build.gradle.kts
+          grep -F 'versionName = "5.8"' android/build.gradle.kts
+          grep -F 'compileSdk = 36' android/build.gradle.kts
+          grep -F 'targetSdk = 36' android/build.gradle.kts
+          grep -F 'Color(0xFF10A37F)' android/src/main/java/com/potato/jarvis/ui/PotatoTheme.kt
+          grep -F 'Color(0xFF19C37D)' android/src/main/java/com/potato/jarvis/ui/PotatoTheme.kt
+          grep -F 'Color(0xFF090A0F)' android/src/main/java/com/potato/jarvis/ui/PotatoTheme.kt
+          chmod +x gradlew scripts/*.sh scripts/*.py backend/run.sh
+          python -m compileall -q backend scripts
+          python scripts/scan_secrets.py .
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for p in Path('android/src').rglob('*.xml'):
+              ET.parse(p)
+          bad=[]
+          for p in [*Path('android/src').rglob('*.kt'), *Path('backend').rglob('*.py')]:
+              text=p.read_text(encoding='utf-8')
+              if '<<<<<<<' in text or '>>>>>>>' in text:
+                  bad.append(str(p))
+          if bad:
+              raise SystemExit('merge markers: '+', '.join(bad))
+          print('SOURCE_INTEGRITY=PASS')
+          PY
+
+      - name: Verify Gradle wrapper
+        run: ./scripts/verify_gradle_wrapper.sh
+
+      - name: Install and audit backend dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install -r backend/requirements.txt pip-audit==2.10.1
+          pip-audit -r backend/requirements.txt
+
+      - name: Backend regression tests
+        env:
+          POTATO_ENV: test
+        run: |
+          set -euo pipefail
+          python -m compileall -q backend
+          python -m pytest -q backend/tests
+
+      - name: Android unit tests
+        run: ./gradlew :android:testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Require actual Android tests
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          reports=list(Path('android/build/test-results/testDebugUnitTest').glob('TEST-*.xml'))
+          if not reports:
+              raise SystemExit('No Android JUnit reports')
+          tests=failures=errors=0
+          for p in reports:
+              r=ET.parse(p).getroot()
+              tests += int(r.attrib.get('tests','0'))
+              failures += int(r.attrib.get('failures','0'))
+              errors += int(r.attrib.get('errors','0'))
+          if tests <= 0 or failures or errors:
+              raise SystemExit(f'Android tests not clean: {tests=} {failures=} {errors=}')
+          print(f'ANDROID_TESTS_EXECUTED={tests}')
+          PY
+
+      - name: Build debug APK and release AAB
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew :android:assembleDebug :android:bundleRelease --no-daemon --stacktrace
+          test -s android/build/outputs/apk/debug/android-debug.apk
+          test -s android/build/outputs/bundle/release/android-release.aab
+          unzip -t android/build/outputs/apk/debug/android-debug.apk >/dev/null
+          unzip -t android/build/outputs/bundle/release/android-release.aab >/dev/null
+
+      - name: Android lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew :android:lint --no-daemon --max-workers=1 -Dorg.gradle.jvmargs='-Xmx3g -Dfile.encoding=UTF-8' --stacktrace
+          test -s android/build/reports/lint-results-debug.xml
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root=ET.parse('android/build/reports/lint-results-debug.xml').getroot()
+          errors=[x for x in root.findall('issue') if x.attrib.get('severity') in {'Error','Fatal'}]
+          if errors:
+              raise SystemExit(f'Android lint has {len(errors)} blocking issue(s)')
+          print('ANDROID_LINT_ERRORS=0')
+          PY
+
+      - name: Install emulator system image
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
+
+      - name: Start real local POTATO backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/potato-home"
+          POTATO_ENV=development \
+          POTATO_ALLOW_ANONYMOUS=true \
+          POTATO_DB="$RUNNER_TEMP/potato-v58-ci.db" \
+          POTATO_HOME="$RUNNER_TEMP/potato-home" \
+          python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 >"$RUNNER_TEMP/potato-backend.log" 2>&1 &
+          echo $! >"$RUNNER_TEMP/potato-backend.pid"
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/v1/health >"$RUNNER_TEMP/health.json"; then
+              break
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/health.json"
+          grep -q '"version":"5.8"' "$RUNNER_TEMP/health.json"
+
+      - name: Boot emulator install launch and verify GUI
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm || true; fi
+          echo no | avdmanager create avd --force --name potato-ci --package "system-images;android-35;google_apis;x86_64" --device "pixel_6"
+          "$ANDROID_HOME/emulator/emulator" \
+            -avd potato-ci -no-window -noaudio -no-boot-anim -no-snapshot \
+            -gpu swiftshader_indirect >"$RUNNER_TEMP/emulator.log" 2>&1 &
+          adb wait-for-device
+          for i in $(seq 1 180); do
+            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then break; fi
+            sleep 2
+          done
+          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
+
+          APK="$GITHUB_WORKSPACE/android/build/outputs/apk/debug/android-debug.apk"
+          adb install -r "$APK" | tee "$RUNNER_TEMP/adb-install.txt"
+          grep -q 'Success' "$RUNNER_TEMP/adb-install.txt"
+          adb shell am start -W -n com.potato.jarvis/.MainActivity | tee "$RUNNER_TEMP/am-start.txt"
+          grep -q 'Status: ok' "$RUNNER_TEMP/am-start.txt"
+          sleep 3
+
+          dump_ui() {
+            adb shell uiautomator dump /sdcard/window.xml >/dev/null
+            adb pull /sdcard/window.xml "$RUNNER_TEMP/window.xml" >/dev/null
+          }
+          tap_text() {
+            local needle="$1"
+            dump_ui
+            local xy
+            xy=$(python - "$needle" "$RUNNER_TEMP/window.xml" <<'PY'
+          import re, sys, xml.etree.ElementTree as ET
+          needle=sys.argv[1].lower()
+          root=ET.parse(sys.argv[2]).getroot()
+          for node in root.iter('node'):
+              hay=(node.attrib.get('text','')+' '+node.attrib.get('content-desc','')).lower()
+              if needle in hay:
+                  m=re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib.get('bounds',''))
+                  if m:
+                      a,b,c,d=map(int,m.groups())
+                      print((a+c)//2, (b+d)//2)
+                      raise SystemExit(0)
+          raise SystemExit(f'UI text not found: {needle}')
+          PY
+            )
+            adb shell input tap $xy
+          }
+
+          dump_ui
+          grep -Eq 'Optional Accessibility context|POTATO' "$RUNNER_TEMP/window.xml"
+          if grep -q 'Optional Accessibility context' "$RUNNER_TEMP/window.xml"; then
+            tap_text "Accept"
+            sleep 2
+          fi
+          dump_ui
+          grep -Eq 'Connect your AI assistant|Test &amp; Connect|Test & Connect' "$RUNNER_TEMP/window.xml"
+          tap_text "Test & Connect"
+          sleep 5
+          dump_ui
+          grep -Eq 'Talk to POTATO|New chat|ONLINE|online' "$RUNNER_TEMP/window.xml"
+          adb exec-out screencap -p > "$RUNNER_TEMP/POTATO-V5.8-emulator.png"
+          test -s "$RUNNER_TEMP/POTATO-V5.8-emulator.png"
+          echo 'POTATO_EMULATOR_SMOKE=PASS' >> "$GITHUB_ENV"
+
+      - name: Verify debug APK Android signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs android/build/outputs/apk/debug/android-debug.apk | tee "$RUNNER_TEMP/apksigner.txt"
+
+      - name: Package exact verified source and hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/package_clean_source.py "$RUNNER_TEMP/POTATO-JARVIS-FINAL-V5.8.zip"
+          python scripts/verify_source_archive.py "$RUNNER_TEMP/POTATO-JARVIS-FINAL-V5.8.zip"
+          unzip -t "$RUNNER_TEMP/POTATO-JARVIS-FINAL-V5.8.zip" >/dev/null
+          sha256sum android/build/outputs/apk/debug/android-debug.apk | tee "$RUNNER_TEMP/apk.sha256"
+          sha256sum android/build/outputs/bundle/release/android-release.aab | tee "$RUNNER_TEMP/aab.sha256"
+          sha256sum "$RUNNER_TEMP/POTATO-JARVIS-FINAL-V5.8.zip" | tee "$RUNNER_TEMP/source.sha256"
+
+      - name: Upload V5.8 debug APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: potato-v5.8-debug-apk
+          path: android/build/outputs/apk/debug/android-debug.apk
+          if-no-files-found: error
+
+      - name: Upload V5.8 release AAB
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: potato-v5.8-release-aab-unsigned
+          path: android/build/outputs/bundle/release/android-release.aab
+          if-no-files-found: error
+
+      - name: Upload complete V5.8 source
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: POTATO-JARVIS-FINAL-V5.8
+          path: ${{ runner.temp }}/POTATO-JARVIS-FINAL-V5.8.zip
+          if-no-files-found: error
+
+      - name: Upload V5.8 runtime and verification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: potato-v5.8-verification-evidence
+          path: |
+            android/build/reports/tests/
+            android/build/test-results/
+            android/build/reports/lint-results-debug.html
+            android/build/reports/lint-results-debug.xml
+            ${{ runner.temp }}/health.json
+            ${{ runner.temp }}/potato-backend.log
+            ${{ runner.temp }}/emulator.log
+            ${{ runner.temp }}/adb-install.txt
+            ${{ runner.temp }}/am-start.txt
+            ${{ runner.temp }}/window.xml
+            ${{ runner.temp }}/POTATO-V5.8-emulator.png
+            ${{ runner.temp }}/apksigner.txt
+            ${{ runner.temp }}/*.sha256
+          if-no-files-found: warn
