@@ -25,7 +25,7 @@ client = TestClient(main.app)
 def test_health_and_schema():
     response = client.get("/v1/health")
     assert response.status_code == 200
-    assert response.json()["version"] == "5.7"
+    assert response.json()["version"] == "5.8"
     with main.db() as connection:
         tables = {row["name"] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {"sessions", "messages", "memories", "approvals", "tool_runs", "security_events", "audit_events", "tasks", "task_steps", "plans", "automations", "devices", "uploaded_files", "notifications", "smart_home_homes", "smart_home_devices", "proactive_settings", "agents", "agent_runs"} <= tables
@@ -1483,3 +1483,118 @@ def test_v57_smart_home_token_is_encrypted_at_rest():
 def test_v57_sqlite_secure_delete_enabled():
     with main.db() as connection:
         assert connection.execute("PRAGMA secure_delete").fetchone()[0] == 1
+
+
+# ---------------- V5.8 final-regression gates ----------------
+
+def test_v58_device_success_result_schema_accepts_real_response_shape(monkeypatch):
+    class Response:
+        status_code = 204
+        content = b"ok"
+    class Client:
+        def __init__(self, *args, **kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def post(self, *args, **kwargs): return Response()
+    monkeypatch.setenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "true")
+    monkeypatch.setattr(main.httpx, "Client", Client)
+    created = client.post("/v1/devices", json={
+        "name":"schema-device",
+        "kind":"http",
+        "config":{"base_url":"http://127.0.0.1:8765","actions":{"on":"/on"}},
+    })
+    assert created.status_code == 200
+    result = main.device_action(created.json()["id"], "on", {})
+    assert result["success"] is True
+    assert result["response_bytes"] == 2
+    assert main.validate_tool_result("device_action", result) == result
+
+
+def test_v58_smart_home_success_result_schema_accepts_real_response_shape(monkeypatch):
+    monkeypatch.setenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "true")
+    created = client.post("/v1/smart-home/homes", json={
+        "name":"Schema Home", "provider":"home_assistant",
+        "base_url":"http://127.0.0.1:8123", "token":"secret-token",
+    })
+    assert created.status_code == 200
+    home_id = created.json()["id"]
+    device_id = "schema-light-v58"
+    with main.db() as connection:
+        connection.execute(
+            "INSERT INTO smart_home_devices VALUES(?,?,?,?,?,?,?,?,?)",
+            (device_id, home_id, "light.schema", "Schema Light", "light",
+             '{"kind":"light","actions":["light.turn_on"]}', '{"state":"off"}',
+             main.now_iso(), main.now_iso()),
+        )
+    monkeypatch.setattr(main, "_ha_request", lambda *args, **kwargs: (200, [{"entity_id":"light.schema"}]))
+    result = main.smart_home_action(home_id, device_id, "light.turn_on", {})
+    assert result["success"] is True
+    assert result["home_id"] == home_id
+    assert main.validate_tool_result("smart_home_action", result) == result
+
+
+def test_v58_plan_approved_row_is_not_ambient_permission(monkeypatch):
+    async def fake_openai_response(*args, **kwargs):
+        return {
+            "id": "planner-v58-ambient",
+            "output_text": json.dumps({"steps": [{
+                "description": "write protected note",
+                "tool": "write_note",
+                "arguments": {"filename": "ambient-v58.txt", "content": "must require capability"},
+                "dependencies": [],
+            }]}),
+            "output": [],
+        }
+    monkeypatch.setattr(main, "openai_response", fake_openai_response)
+    plan = asyncio.run(main.create_plan("write protected note", None))
+    first = asyncio.run(main.execute_plan(plan["task_id"]))
+    assert first["status"] == "waiting_for_approval"
+    first_approval = first["approval_id"]
+    with main.db() as connection:
+        connection.execute("UPDATE approvals SET status='approved' WHERE id=?", (first_approval,))
+    # Re-running without presenting that exact capability must not execute it.
+    second = asyncio.run(main.execute_plan(plan["task_id"]))
+    assert second["status"] == "waiting_for_approval"
+    assert second["approval_id"] != first_approval
+    assert not main.safe_path(main.NOTES, "ambient-v58.txt").exists()
+
+
+def test_v58_automation_approval_resumes_original_run_and_continues():
+    created = client.post("/v1/automations", json={
+        "name": "resume-v58",
+        "trigger": {"type": "manual"},
+        "failure_policy": "stop",
+        "actions": [
+            {"tool": "write_note", "arguments": {"filename": "automation-v58.txt", "content": "approved"}},
+            {"tool": "get_time", "arguments": {}},
+        ],
+    })
+    assert created.status_code == 200
+    aid = created.json()["id"]
+    first = client.post(f"/v1/automations/{aid}/run")
+    assert first.status_code == 200
+    with main.db() as connection:
+        run = connection.execute(
+            "SELECT * FROM automation_runs WHERE automation_id=? ORDER BY started_at DESC LIMIT 1", (aid,)
+        ).fetchone()
+    assert run["status"] == "waiting_for_approval"
+    approval_id = run["approval_id"]
+    approved = asyncio.run(main.approval(approval_id, main.ApprovalIn(allow=True)))
+    assert approved["status"] == "approved"
+    assert approved["execution"]["status"] == "completed"
+    with main.db() as connection:
+        resumed = connection.execute("SELECT * FROM automation_runs WHERE id=?", (run["id"],)).fetchone()
+    assert resumed["status"] == "completed"
+    assert resumed["actions_succeeded"] == 2
+    assert main._tool_result("read_note", {"filename": "automation-v58.txt"})["content"] == "approved"
+
+
+def test_v58_manual_endpoint_deny_does_not_create_approval(monkeypatch):
+    monkeypatch.setattr(main, "security_decision", lambda *args, **kwargs: {
+        "decision": "denied", "risk": 4, "error": "blocked by policy"
+    })
+    before = len(client.get("/v1/approvals").json()["approvals"])
+    response = client.post("/v1/devices/action", json={"device_id":"x", "action":"on", "payload":{}})
+    assert response.status_code == 403
+    after = len(client.get("/v1/approvals").json()["approvals"])
+    assert after == before

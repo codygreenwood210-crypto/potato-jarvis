@@ -1,4 +1,4 @@
-# Building and verifying POTATO-JARVIS V5.6
+# Building and verifying POTATO-JARVIS V5.8
 
 ## Prerequisites
 
@@ -37,10 +37,10 @@ CI installs `pip-audit` and audits `backend/requirements.txt` against known Pyth
 ## Clean source package
 
 ```bash
-python scripts/package_clean_source.py /tmp/POTATO-JARVIS-FINAL-V5.6.zip
-python scripts/verify_source_archive.py /tmp/POTATO-JARVIS-FINAL-V5.6.zip
-sha256sum /tmp/POTATO-JARVIS-FINAL-V5.6.zip
-unzip -t /tmp/POTATO-JARVIS-FINAL-V5.6.zip
+python scripts/package_clean_source.py /tmp/POTATO-JARVIS-FINAL-V5.8.zip
+python scripts/verify_source_archive.py /tmp/POTATO-JARVIS-FINAL-V5.8.zip
+sha256sum /tmp/POTATO-JARVIS-FINAL-V5.8.zip
+unzip -t /tmp/POTATO-JARVIS-FINAL-V5.8.zip
 ```
 
 The source verifier checks the canonical archive root, ZIP integrity, forbidden generated/secret/binary content, complete manifest coverage, duplicate manifest entries, and SHA-256 correctness for every packaged source file.

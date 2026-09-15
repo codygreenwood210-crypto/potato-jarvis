@@ -1,6 +1,6 @@
-# POTATO-JARVIS V5.6
+# POTATO-JARVIS V5.8
 
-POTATO-JARVIS is an Android personal AI assistant backed by a FastAPI service. V5.6 is the repair and verification release created from the exact V5.5 source that passed GitHub Actions, followed by a second full audit of Android, backend, CI, privacy, packaging, and release behavior.
+POTATO-JARVIS is an Android personal AI assistant backed by a FastAPI service. V5.8 is the final working-copy candidate built from the verified V5.7 baseline, carrying forward its security/privacy hardening plus explicit approval-capability fixes, automation continuation repairs, side-effect result-contract regression tests, and a ChatGPT-inspired green/black Android theme.
 
 ## Current release baseline
 
@@ -8,15 +8,15 @@ POTATO-JARVIS is an Android personal AI assistant backed by a FastAPI service. V
 - Android application ID: `com.potato.jarvis`
 - `compileSdk = 36`, `targetSdk = 36`, `minSdk = 26`
 - Android Gradle Plugin 8.12.2, Gradle 8.13, JDK 17
-- Version code 56 / version name 5.6
+- Version code 58 / version name 5.8
 - Backend: Python 3.13-compatible FastAPI/Uvicorn/SQLite/httpx
 - OpenAI provider: Responses API; default model `gpt-5.6-luna`
 - Production Android cleartext traffic: disabled
 - Production backend authentication: bearer token required; anonymous mode is development-only
 
-## Features preserved in V5.6
+## Features preserved in V5.8
 
-V5.6 retains the V5.5 feature surface: chat/AI, memory, tasks/plans, approvals, tools, web-enabled backend flows, voice input/output, camera capture and OCR/vision, file intelligence, notifications, automations, local device context, optional calendar/contacts/location context, biometric approval, optional Accessibility foreground-app context, and server-side device/smart-home adapters.
+V5.8 retains the V5.7 feature surface: chat/AI, memory, tasks/plans, approvals, tools, web-enabled backend flows, voice input/output, camera capture and OCR/vision, file intelligence, notifications, automations, local device context, optional calendar/contacts/location context, biometric approval, optional Accessibility foreground-app context, and server-side device/smart-home adapters.
 
 The Accessibility feature remains deliberately narrow: it can observe only foreground package-name changes after an explicit POTATO disclosure/consent flow. It cannot retrieve window content, read screen text, click, type, perform gestures, or control another app.
 
@@ -26,11 +26,11 @@ The model is not the authorization authority. Tool risk is evaluated by applicat
 
 OpenAI credentials stay on the backend. The Android bearer token is protected with Android Keystore-backed encryption. Production OpenAI endpoints must use HTTPS. Private/loopback smart-device networks are blocked unless explicitly enabled by server configuration.
 
-V5.6 additionally enforces Accessibility consent inside the service, validates internal notification deep links on both client and server, redacts sensitive audit data before persistence, bounds persisted audit data as valid JSON, validates provider response/stream envelopes, and separates permanent background-worker failures from retryable failures.
+V5.8 additionally enforces Accessibility consent inside the service, validates internal notification deep links on both client and server, redacts sensitive audit data before persistence, bounds persisted audit data as valid JSON, validates provider response/stream envelopes, and separates permanent background-worker failures from retryable failures.
 
 ## Android permissions
 
-Permissions are optional and requested by feature rather than as one large bundle. Location retains both approximate and precise capability when the user chooses it. Contacts and calendar are separate. Camera capture is delegated to the system camera through `ActivityResultContracts.TakePicture`, so V5.6 does not declare the direct `CAMERA` runtime permission. Microphone, notifications, biometrics and other sensitive capabilities remain feature-scoped.
+Permissions are optional and requested by feature rather than as one large bundle. Location retains both approximate and precise capability when the user chooses it. Contacts and calendar are separate. Camera capture is delegated to the system camera through `ActivityResultContracts.TakePicture`, so V5.8 does not declare the direct `CAMERA` runtime permission. Microphone, notifications, biometrics and other sensitive capabilities remain feature-scoped.
 
 ## Backend setup
 
@@ -73,18 +73,18 @@ python -m pytest -q backend/tests
 Clean source packaging and integrity verification:
 
 ```bash
-python scripts/package_clean_source.py /tmp/POTATO-JARVIS-FINAL-V5.6.zip
-python scripts/verify_source_archive.py /tmp/POTATO-JARVIS-FINAL-V5.6.zip
+python scripts/package_clean_source.py /tmp/POTATO-JARVIS-FINAL-V5.8.zip
+python scripts/verify_source_archive.py /tmp/POTATO-JARVIS-FINAL-V5.8.zip
 ```
 
-The clean source archive has a single canonical root `POTATO-JARVIS-V5.6/`, excludes build/cache/local-secret/signing/binary output, and contains `SOURCE_MANIFEST.sha256` covering every packaged source file except the manifest itself.
+The clean source archive has a single canonical root `POTATO-JARVIS-V5.8/`, excludes build/cache/local-secret/signing/binary output, and contains `SOURCE_MANIFEST.sha256` covering every packaged source file except the manifest itself.
 
-See `docs/POTATO_V5.6_MASTER_REPAIR_ROADMAP.md` for the audit/repair acceptance gates and `RELEASE_REPORT.md` for the current evidence state.
+See `RELEASE_REPORT.md` for the exact CI evidence state. Older V5.6/V5.7 roadmap files are retained as historical audit lineage.
 
 ## Release status
 
-A green CI build is not the same as production distribution. A production-ready release still requires developer-controlled signing / Play App Signing, policy declarations, Play internal testing, physical-device installation and regression testing, and live deployment verification. POTATO previously encountered a Google Play Protect sensitive-permission block during sideload testing; V5.6 improves permission/consent design but no source-only change can guarantee an external Play Protect classification outcome.
+A green CI build is not the same as production distribution. A production-ready release still requires developer-controlled signing / Play App Signing, policy declarations, Play internal testing, physical-device installation and regression testing, and live deployment verification. POTATO previously encountered a Google Play Protect sensitive-permission block during sideload testing; V5.8 preserves the improved permission/consent design but no source-only change can guarantee an external Play Protect classification outcome.
 
 ## Historical audit material
 
-Files whose names explicitly reference V5.1, V5.4 or V5.5 are retained as historical audit/release lineage. They do not describe the current V5.6 build. Current release guidance is `README.md`, `HOW_TO_BUILD.md`, `RELEASE_REPORT.md`, `CHANGES_V5.6.md`, and the V5.6 documents under `docs/`.
+Files whose names explicitly reference V5.1, V5.4 or V5.5 are retained as historical audit/release lineage. They do not describe the current V5.8 build. Current release guidance is `README.md`, `HOW_TO_BUILD.md`, `RELEASE_REPORT.md`, and `CHANGES_V5.8.md`.

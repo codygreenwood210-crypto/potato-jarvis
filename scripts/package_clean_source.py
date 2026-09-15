@@ -48,9 +48,7 @@ def finalize_ci_evidence() -> None:
         errors += int(suite.attrib.get("errors", "0"))
         skipped += int(suite.attrib.get("skipped", "0"))
     if tests <= 0 or failures or errors:
-        raise SystemExit(
-            f"Cannot finalize CI evidence: tests={tests} failures={failures} errors={errors}"
-        )
+        raise SystemExit(f"Cannot finalize CI evidence: tests={tests} failures={failures} errors={errors}")
 
     lint_path = ROOT / "android/build/reports/lint-results-debug.xml"
     if not lint_path.is_file():
@@ -67,77 +65,44 @@ def finalize_ci_evidence() -> None:
     aab = ROOT / "android/build/outputs/bundle/release/android-release.aab"
     if not apk.is_file() or not aab.is_file() or apk.stat().st_size == 0 or aab.stat().st_size == 0:
         raise SystemExit("Cannot finalize CI evidence: APK/AAB release artifacts are missing")
+    if os.getenv("POTATO_EMULATOR_SMOKE") != "PASS":
+        raise SystemExit("Cannot finalize CI evidence: Android emulator smoke verification did not pass")
 
+    build_text = (ROOT / "android/build.gradle.kts").read_text(encoding="utf-8")
+    match = __import__("re").search(r"versionCode\s*=\s*(\d+)", build_text)
+    version_code = match.group(1) if match else "unknown"
     run_id = os.getenv("GITHUB_RUN_ID", "unknown")
     commit = os.getenv("GITHUB_SHA", "unknown")
     run_url = f"https://github.com/{os.getenv('GITHUB_REPOSITORY', 'unknown')}/actions/runs/{run_id}"
-    report = f'''# POTATO-JARVIS V5.6 Release Verification Report
+    report = f'''# POTATO-JARVIS V{VERSION} Release Verification Report
 
-**Release:** 5.6 (`versionCode 56`)  
-**Audit date:** 2026-09-12  
-**Verification run:** {run_id}  
-**Harness commit:** `{commit}`  
-**Run URL:** {run_url}  
-**Automated verification status:** **PASS**
+**Release:** {VERSION} (`versionCode {version_code}`)  \n**Verification run:** {run_id}  \n**Source commit:** `{commit}`  \n**Run URL:** {run_url}  \n**Automated working-copy verification:** **PASS**
 
 ## Automated evidence
 
-The clean source archive containing this report is created only after every preceding canonical V5.6 workflow gate succeeds.
+This clean source archive is created only after every mandatory V{VERSION} CI gate succeeds.
 
-- Exact V5.5 baseline integrity: PASS.
-- V5.6 source reconstruction/invariants: PASS.
-- Secret-pattern scan: PASS.
-- Android XML parse: PASS.
-- Generated-output cleanliness before build: PASS.
-- Official Gradle 8.13 wrapper integrity verification: PASS.
-- Python dependency vulnerability audit (`pip-audit`): PASS with no known vulnerabilities reported by the gate.
-- Backend Python compile and tests: PASS.
-- API-36 Android resource processing: PASS.
-- Android JVM tests: PASS — {tests} executed, {failures} failures, {errors} errors, {skipped} skipped.
+- Source/version integrity and secret-pattern scan: PASS.
+- Official Gradle-wrapper integrity verification: PASS.
+- Python dependency vulnerability audit: PASS.
+- Backend Python compile and regression tests: PASS.
+- Android JVM tests: PASS - {tests} executed, {failures} failures, {errors} errors, {skipped} skipped.
 - Debug APK assembly: PASS.
-- Android lint: PASS — 0 errors; {lint_warnings} warnings and {lint_hints} hints retained for non-blocking maintenance review.
-- Release AAB assembly including release lint-vital: PASS.
-- Clean-source packaging and independent source-manifest verification: runs immediately after this report is written.
+- Android lint: PASS - 0 errors; {lint_warnings} warnings and {lint_hints} hints retained for maintenance review.
+- Release AAB assembly: PASS.
+- Android emulator boot, APK installation, MainActivity launch, first-use disclosure, setup connection to a real local POTATO backend, and chat-screen UI smoke checks: PASS.
+- Green/black theme source invariant: PASS.
+- Clean-source packaging and source-manifest verification: executed immediately after this report is written.
 
-## Release artifacts
+## Scope
 
-The workflow produces and hashes a debug APK, an unsigned release AAB candidate, the complete clean V5.6 source ZIP, and verification reports. Production signing credentials are intentionally not committed to source or CI.
+This evidence establishes the V{VERSION} downloadable debug working copy produced by this CI run. The unsigned release AAB is a build candidate, not a Play-distribution claim.
 
-## External/manual gates
+## External production gates
 
-The following are deliberately **not** represented as automated PASS results: developer-controlled upload signing / Play App Signing, Play Console policy declarations and review, internal-track installation, physical-device critical-flow regression, live production backend/provider/device integration, and final Play Protect classification.
-
-## Production status
-
-**NOT PRODUCTION READY** until those external/manual release gates are completed successfully.
+Play App Signing/developer release signing, Play Console policy review, production backend/provider/device credentials, Play internal-track testing, Play Protect classification, and physical-device hardware-specific checks remain external deployment gates and are not represented as CI PASS results.
 '''
     (ROOT / "RELEASE_REPORT.md").write_text(report, encoding="utf-8")
-
-    readiness = f'''# POTATO-JARVIS V5.6 release-readiness gates
-
-## Automated gates — PASS
-
-Canonical GitHub Actions run **{run_id}** (harness commit `{commit}`) reached source packaging only after all mandatory automated gates succeeded: backend compile/tests, Python dependency vulnerability audit, Gradle-wrapper integrity, API-36 resources, {tests} real Android JVM tests, debug APK assembly, blocking Android lint with 0 errors, release AAB assembly, secret scan, XML validation, and source-state checks.
-
-Lint retained {lint_warnings} non-blocking warnings and {lint_hints} hint for maintenance review; none are lint errors.
-
-## Manual/external gates — NOT RUN / BLOCKED OUTSIDE CI
-
-Production release still requires developer-controlled signing / Play App Signing, Play policy declarations including Accessibility/Data Safety where applicable, Play internal-track installation, physical-device critical-flow regression, a production HTTPS backend, live provider/device integration verification, and resolution/appeal of any Google Play Protect or Play policy block.
-
-## Production status
-
-**NOT PRODUCTION READY** until the external/manual gates above have successful evidence.
-
-## Dependency security baseline
-
-- FastAPI 0.141.1 and Starlette 1.6.0.
-- python-multipart 0.0.32.
-- pypdf 6.18.0.
-- pytest 9.1.1.
-- `pip-audit` is a mandatory zero-known-vulnerability release gate.
-'''
-    (ROOT / "docs/RELEASE_READINESS_V5.6.md").write_text(readiness, encoding="utf-8")
 
 
 finalize_ci_evidence()

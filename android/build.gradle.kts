@@ -12,8 +12,8 @@ android {
         applicationId = "com.potato.jarvis"
         minSdk = 26
         targetSdk = 36
-        versionCode = 57
-        versionName = "5.7"
+        versionCode = 58
+        versionName = "5.8"
     }
 
     compileOptions {
@@ -34,12 +34,12 @@ android {
         debug {
             buildConfigField("String", "DEFAULT_BACKEND_URL", "\"http://10.0.2.2:8000\"")
             buildConfigField("boolean", "ALLOW_HTTP_BACKEND", "true")
-            buildConfigField("String", "POTATO_VERSION", "\"5.7\"")
+            buildConfigField("String", "POTATO_VERSION", "\"5.8\"")
         }
         release {
             buildConfigField("String", "DEFAULT_BACKEND_URL", "\"\"")
             buildConfigField("boolean", "ALLOW_HTTP_BACKEND", "false")
-            buildConfigField("String", "POTATO_VERSION", "\"5.7\"")
+            buildConfigField("String", "POTATO_VERSION", "\"5.8\"")
         }
     }
 }
