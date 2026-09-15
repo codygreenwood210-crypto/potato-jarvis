@@ -1,0 +1,61 @@
+name: Sync POTATO V5.8 Final Backend Repairs
+
+on:
+  push:
+    branches: [potato-v5.8-final]
+    paths:
+      - '.potato-v58/**'
+      - '.github/workflows/sync-v5.8-final-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: potato-v5.8-source-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  materialize-final-repairs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Reconstruct and verify patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .potato-v58/syncpatch.00 .potato-v58/syncpatch.01 .potato-v58/syncpatch.02 | base64 -d > /tmp/sync4.repo.patch.gz
+          echo '104c1047f456fd785b7b95109fd18dd717fec480781f9d841ff4244d62a6ae65  /tmp/sync4.repo.patch.gz' | sha256sum -c -
+          gzip -dc /tmp/sync4.repo.patch.gz > /tmp/sync4.repo.patch
+          git apply -p0 --check /tmp/sync4.repo.patch
+
+      - name: Apply exact bug-tested source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply -p0 /tmp/sync4.repo.patch
+          test "$(git hash-object backend/main.py)" = '33045aa3c155db8e071ae1029287a6cce40faf7a'
+          test "$(git hash-object backend/tests/test_main.py)" = '2dd11e0a45a881d9b5b1ad49c20b4b62a4f78cb8'
+          test "$(git hash-object backend/providers.py)" = '18e4497afedf343f36b900187e520c445c1bee14'
+          test "$(git hash-object backend/tests/test_providers.py)" = 'f95739f88d0218f32c3ae7fd2b76acf16a4b0992'
+          python -m compileall -q backend
+          echo 'V58_SOURCE_HASHES=PASS'
+
+      - name: Commit exact repaired source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'POTATO Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add backend/main.py backend/providers.py backend/tests/test_main.py backend/tests/test_providers.py
+          if git diff --cached --quiet; then
+            echo 'Exact repaired source already materialized'
+          else
+            git commit -m 'fix: sync final V5.8 backend regression repairs'
+            git push origin HEAD:potato-v5.8-final
+          fi
