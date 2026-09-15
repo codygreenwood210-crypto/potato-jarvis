@@ -74,9 +74,14 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf .potato-v58
+          git checkout HEAD -- .github/workflows/verify-v5.8-final.yml .github/workflows/materialize-v5.8.yml
           git config user.name 'POTATO Build Bot'
           git config user.email 'actions@users.noreply.github.com'
           git add -A
           test "$(cat VERSION)" = '5.8'
+          if git diff --cached --name-only | grep -q '^\.github/workflows/'; then
+            echo 'Refusing to commit workflow changes from runtime materializer' >&2
+            exit 1
+          fi
           git commit -m 'Materialize POTATO V5.8 root-cause repaired source'
           git push origin HEAD:potato-v5.8-final
