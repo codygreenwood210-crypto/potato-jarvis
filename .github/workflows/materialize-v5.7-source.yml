@@ -1,3 +1,4 @@
+# V5.7 canonical-source recovery, independently integrity checked
 name: Materialize POTATO V5.7 canonical source
 
 on:
@@ -45,7 +46,6 @@ jobs:
       - name: Apply audited V5.7 source changes
         run: |
           set -euo pipefail
-          # VERSION/settings/android build metadata were already advanced to 5.7 by the staging branch.
           git apply --check --exclude=VERSION --exclude=settings.gradle.kts --exclude=android/build.gradle.kts /tmp/v57.patch
           git apply --exclude=VERSION --exclude=settings.gradle.kts --exclude=android/build.gradle.kts /tmp/v57.patch
           rm -rf .v57-stage
