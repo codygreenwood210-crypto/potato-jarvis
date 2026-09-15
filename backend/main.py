@@ -17,7 +17,7 @@ import sqlite3
 import uuid
 import zipfile
 import io
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -32,7 +32,7 @@ from urllib.parse import urlparse, urlunparse
 
 import httpx
 from dotenv import load_dotenv
-from .providers import provider_from_environment
+from .providers import close_cached_provider, provider_from_environment
 from .web import extract_web_citations, sanitize_web_answer
 from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -131,6 +131,7 @@ async def lifespan(_app: FastAPI):
             except asyncio.CancelledError:
                 pass
             _automation_task = None
+        await close_cached_provider()
 
 
 app = FastAPI(title=APP_NAME, version=VERSION, lifespan=lifespan)
@@ -229,15 +230,20 @@ def parse_iso(value: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
-def db() -> sqlite3.Connection:
+@contextmanager
+def db():
     connection = sqlite3.connect(DB, timeout=20)
-    connection.row_factory = sqlite3.Row
-    if DB.exists():
-        _secure_chmod(DB, 0o600)
-    connection.execute("PRAGMA foreign_keys=ON")
-    connection.execute("PRAGMA secure_delete=ON")
-    connection.execute("PRAGMA busy_timeout=20000")
-    return connection
+    try:
+        connection.row_factory = sqlite3.Row
+        if DB.exists():
+            _secure_chmod(DB, 0o600)
+        connection.execute("PRAGMA foreign_keys=ON")
+        connection.execute("PRAGMA secure_delete=ON")
+        connection.execute("PRAGMA busy_timeout=20000")
+        with connection:
+            yield connection
+    finally:
+        connection.close()
 
 
 CREDENTIAL_PREFIX = "enc:v1:"
@@ -429,7 +435,7 @@ def init_db() -> None:
                 trigger_type TEXT NOT NULL, event_name TEXT, status TEXT NOT NULL,
                 actions_attempted INTEGER NOT NULL DEFAULT 0, actions_succeeded INTEGER NOT NULL DEFAULT 0,
                 actions_failed INTEGER NOT NULL DEFAULT 0, approval_id TEXT, error TEXT,
-                started_at TEXT NOT NULL, completed_at TEXT,
+                occurrence_key TEXT, started_at TEXT NOT NULL, completed_at TEXT,
                 FOREIGN KEY(automation_id) REFERENCES automations(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_automation_runs_automation_started ON automation_runs(automation_id, started_at);
@@ -557,6 +563,10 @@ def init_db() -> None:
                 connection.execute(ddl)
         stamp = datetime.now(timezone.utc).isoformat()
         connection.execute("UPDATE automations SET created_at=COALESCE(NULLIF(created_at,''), ?), updated_at=COALESCE(NULLIF(updated_at,''), ?)", (stamp, stamp))
+        automation_run_columns = _columns(connection, "automation_runs")
+        if "occurrence_key" not in automation_run_columns:
+            connection.execute("ALTER TABLE automation_runs ADD COLUMN occurrence_key TEXT")
+        connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_run_occurrence ON automation_runs(automation_id, occurrence_key) WHERE occurrence_key IS NOT NULL")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_automation_enabled ON automations(enabled, updated_at)")
         connection.execute(
             "INSERT OR IGNORE INTO proactive_settings(id,enabled,mode,daily_limit,quiet_start,quiet_end,updated_at) VALUES(1,1,'permission_based',5,22,7,?)",
@@ -1176,6 +1186,23 @@ for _tool_name, _tool_spec in list(TOOLS.items()):
 TOOL_REGISTRY = ToolRegistry(TOOLS)
 
 
+def tool_risk(name: str, args: dict[str, Any]) -> int:
+    """Return the authoritative risk for the exact normalized invocation.
+
+    Most tools have a static risk from the registry. Smart-home control is
+    action-sensitive: ordinary lighting/climate commands are confirmation
+    gated (risk 2), while lock operations are biometric gated (risk 3).
+    Keeping this logic centralized prevents planner/automation/API drift.
+    """
+    spec = TOOL_REGISTRY.require(name)
+    if name == "smart_home_action":
+        action = str(args.get("action", ""))
+        definition = SMART_HOME_ACTIONS.get(action)
+        if definition is not None:
+            return int(definition[2])
+    return int(spec.risk)
+
+
 def _validate_json_schema_definition(schema: Any, path: str = "schema") -> None:
     if not isinstance(schema, dict):
         raise ValueError(f"{path} must be an object")
@@ -1417,8 +1444,7 @@ def security_decision(trace_id: str, name: str, args: dict[str, Any]) -> dict[st
         normalized = args if isinstance(args, dict) else {}
         error = str(exc)
     else:
-        spec = TOOL_REGISTRY.require(name)
-        risk = spec.risk
+        risk = tool_risk(name, normalized)
         error = None
         if risk >= 4:
             decision = "denied"
@@ -1447,6 +1473,7 @@ async def openai_response(
     input_items: Any,
     *,
     tools: Optional[list[dict[str, Any]]] = None,
+    text: Optional[dict[str, Any]] = None,
     model: Optional[str] = None,
     previous_response_id: Optional[str] = None,
 ) -> dict[str, Any]:
@@ -1454,6 +1481,7 @@ async def openai_response(
     return await provider.responses(
         input_items,
         tools=tools,
+        text=text,
         model=model,
         previous_response_id=previous_response_id,
     )
@@ -1699,7 +1727,10 @@ async def ai_chat(message: str, session_id: str, use_web: bool, trace_id: Option
         + json.dumps(context, ensure_ascii=False)
         + "\n\nUSER:\n" + message
     )
-    tools = list(TOOL_REGISTRY.function_definitions())
+    # Public web access is handled above from the explicit user message only. Do
+    # not expose the web_search function to the context-bearing model turn, or a
+    # prompt injection in memory/history could turn private context into egress.
+    tools = [definition for definition in TOOL_REGISTRY.function_definitions() if definition.get("name") != "web_search"]
     response = await openai_response(prompt, tools=tools)
     events = response_events(response)
     total_tool_calls = 0
@@ -1874,7 +1905,7 @@ def normalize_plan(plan: Any) -> list[dict[str, Any]]:
                 arguments = validate_tool_args(tool, dict(raw_step.get("arguments", {})))
             except (ValueError, HTTPException) as exc:
                 raise HTTPException(400, f"Invalid arguments for {tool}: {exc}") from exc
-            risk = TOOLS[tool].risk
+            risk = tool_risk(tool, arguments)
         else:
             arguments = {}
             risk = 0
@@ -1911,19 +1942,72 @@ def validate_plan_graph(steps: list[dict[str, Any]]) -> None:
 async def create_plan(request: str, session_id: Optional[str], trace_id: Optional[str] = None) -> dict[str, Any]:
     root_trace_id = trace_id or str(uuid.uuid4())
     task_id = str(uuid.uuid4())
-    prompt = SYSTEM_PROMPT + """
-Create a safe executable plan for the user's request. Return ONLY JSON with this shape:
-{"steps":[{"description":"...","tool":"tool_name or null","arguments":{},"dependencies":[]}]}
-Use only these tools: get_time, remember, read_note, write_note, list_notes, delete_note, read_file,
-write_file, delete_file, web_search, device_action. Never invent a tool. Prefer no tool when the task
-is purely conversational. Keep plans to at most 12 steps. The application will calculate risk itself.
-""" + "\nUSER REQUEST:\n" + request
-    response = await openai_response(prompt)
+    allowed_tools = sorted(TOOLS)
+    prompt = (
+        SYSTEM_PROMPT
+        + "\nCreate a safe executable plan for the user's request. "
+        "Each step must use one registered tool or __none__. arguments_json must be a JSON object encoded as a string. "
+        "Never invent a tool. Prefer __none__ for purely conversational work. Keep plans concise.\n"
+        + "REGISTERED TOOLS: " + ", ".join(allowed_tools)
+        + "\nUSER REQUEST:\n" + request
+    )
+    plan_schema = {
+        "type": "object",
+        "properties": {
+            "steps": {
+                "type": "array",
+                "maxItems": MAX_PLAN_STEPS,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "description": {"type": "string"},
+                        "tool": {"type": "string", "enum": ["__none__", *allowed_tools]},
+                        "arguments_json": {"type": "string"},
+                        "dependencies": {"type": "array", "items": {"type": "integer"}},
+                    },
+                    "required": ["description", "tool", "arguments_json", "dependencies"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["steps"],
+        "additionalProperties": False,
+    }
+    response = await openai_response(
+        prompt,
+        text={"format": {"type": "json_schema", "name": "potato_plan", "strict": True, "schema": plan_schema}},
+    )
     try:
         parsed = json.loads(output_text(response))
     except json.JSONDecodeError as exc:
-        raise HTTPException(502, f"Planner returned invalid JSON: {exc}") from exc
-    steps = normalize_plan(parsed)
+        raise HTTPException(502, f"Planner returned invalid structured JSON: {exc}") from exc
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("steps"), list):
+        raise HTTPException(502, "Planner returned an invalid structured plan")
+    converted_steps: list[dict[str, Any]] = []
+    for index, raw in enumerate(parsed["steps"]):
+        if not isinstance(raw, dict):
+            raise HTTPException(502, f"Planner returned invalid step {index}")
+        # Backward-compatible parsing of stored/test planner shapes remains safe
+        # because normalize_plan validates the final tool and arguments against the
+        # authoritative registry before anything is persisted or executed.
+        tool_value = raw.get("tool")
+        tool = None if tool_value in {None, "__none__"} else str(tool_value)
+        if "arguments_json" in raw:
+            try:
+                arguments = json.loads(str(raw.get("arguments_json", "{}")))
+            except json.JSONDecodeError as exc:
+                raise HTTPException(502, f"Planner returned invalid arguments JSON at step {index}") from exc
+        else:
+            arguments = raw.get("arguments", {})
+        if not isinstance(arguments, dict):
+            raise HTTPException(502, f"Planner arguments must be an object at step {index}")
+        converted_steps.append({
+            "description": raw.get("description", f"Step {index + 1}"),
+            "tool": tool,
+            "arguments": arguments,
+            "dependencies": raw.get("dependencies", []),
+        })
+    steps = normalize_plan({"steps": converted_steps})
     plan = {"task_id": task_id, "request": request, "steps": steps, "trace_id": root_trace_id}
     stamp = now_iso()
     with db() as connection:
@@ -2017,13 +2101,13 @@ async def execute_plan(plan_id: str, authorized_approval_id: Optional[str] = Non
 
         if authorized:
             decision = {"decision": "allowed", "risk": int(approval_row["risk"]), "authorized_by_approval": True, "approval_id": approval_row["id"]}
-        elif TOOLS[tool].risk <= 1:
-            decision = {"decision": "allowed", "risk": TOOLS[tool].risk, "authorized_by_approval": False}
+        elif tool_risk(tool, normalized_step_args) <= 1:
+            decision = {"decision": "allowed", "risk": tool_risk(tool, normalized_step_args), "authorized_by_approval": False}
         else:
             # Approval records are one-shot capabilities, never ambient permission.
             # A caller resuming this exact plan step must explicitly present the
             # approval id through authorized_approval_id.
-            decision = {"decision": "requires_approval", "risk": TOOLS[tool].risk, "authorized_by_approval": False}
+            decision = {"decision": "requires_approval", "risk": tool_risk(tool, normalized_step_args), "authorized_by_approval": False}
         audit(trace_id, "security_decision", {"tool": tool, "step": index, **decision})
         if decision["decision"] != "allowed":
             approval_id = create_approval(tool, step["arguments"], decision["risk"], source_type="plan", source_id=plan_id, step_index=index, trace_id=trace_id)
@@ -2478,36 +2562,143 @@ def notification_delivered(notification_id: str, authorization: Optional[str] = 
 # ----------------------------- smart devices -----------------------------
 
 
-def _validate_device_url(base_url: str) -> str:
-    parsed = urlparse(base_url)
+@dataclass(frozen=True)
+class _ResolvedDeviceTarget:
+    public_base_url: str
+    connect_base_url: str
+    host_header: str
+    sni_hostname: str | None
+
+
+def _resolve_device_target(base_url: str, *, credentialed: bool = False) -> _ResolvedDeviceTarget:
+    """Validate and pin a configured device endpoint to one vetted IP.
+
+    Validation and connection must use the same DNS result. Connecting to the
+    original hostname after validation would allow DNS rebinding between the
+    check and the socket connection. HTTPS keeps certificate validation bound to
+    the original hostname through SNI while the TCP connection is pinned to the
+    vetted address.
+    """
+    parsed = urlparse(str(base_url).strip())
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise ValueError("device base_url must be an absolute HTTP(S) URL")
     if parsed.username or parsed.password:
         raise ValueError("device URL credentials are not allowed")
-    if parsed.port and not 1 <= parsed.port <= 65535:
+    if parsed.query or parsed.fragment:
+        raise ValueError("device base_url must not contain a query or fragment")
+    if "\\" in parsed.path or any(part in {".", ".."} for part in parsed.path.split("/") if part):
+        raise ValueError("device base_url contains an unsafe path")
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("invalid device port") from exc
+    port = port or (443 if parsed.scheme == "https" else 80)
+    if not 1 <= port <= 65535:
         raise ValueError("invalid device port")
-    hostname = parsed.hostname.rstrip(".").lower()
-    allow_private = os.getenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "false").strip().lower() in {"1", "true", "yes"}
+
     environment = os.getenv("POTATO_ENV", "development").strip().lower()
-    configured_hosts = {item.strip().lower().rstrip(".") for item in os.getenv("POTATO_DEVICE_HOST_ALLOWLIST", "").split(",") if item.strip()}
+    allow_private = os.getenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "false").strip().lower() in {"1", "true", "yes"}
+    allow_insecure_http = os.getenv("POTATO_ALLOW_INSECURE_DEVICE_HTTP", "false").strip().lower() in {"1", "true", "yes"}
+    if credentialed and parsed.scheme != "https":
+        if environment == "production" or not allow_insecure_http:
+            raise ValueError("credentialed device connections require HTTPS; insecure HTTP is development opt-in only")
+
+    hostname = parsed.hostname.rstrip(".").lower()
+    configured_hosts = {
+        item.strip().lower().rstrip(".")
+        for item in os.getenv("POTATO_DEVICE_HOST_ALLOWLIST", "").split(",")
+        if item.strip()
+    }
     try:
         literal_ip = ipaddress.ip_address(hostname)
     except ValueError:
         literal_ip = None
-    if environment == "production" and not literal_ip and hostname not in configured_hosts:
+    if environment == "production" and literal_ip is None and hostname not in configured_hosts:
         raise ValueError("device hostname is not in POTATO_DEVICE_HOST_ALLOWLIST")
+
     try:
-        addresses = {item[4][0] for item in socket.getaddrinfo(hostname, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)}
-        for address in addresses:
-            ip = ipaddress.ip_address(address)
-            if not allow_private and not ip.is_global:
-                raise ValueError("private, loopback, link-local, or reserved device networks are disabled by default")
-            if configured_hosts and hostname in configured_hosts and not allow_private and not ip.is_global:
-                raise ValueError("device hostname resolves to a non-public address")
+        infos = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
     except socket.gaierror as exc:
         raise ValueError(f"unable to resolve device host: {exc}") from exc
-    return base_url.rstrip("/")
+    if not infos:
+        raise ValueError("device host resolved to no addresses")
 
+    vetted: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
+    seen: set[str] = set()
+    for info in infos:
+        address = str(info[4][0]).split("%", 1)[0]
+        if address in seen:
+            continue
+        seen.add(address)
+        try:
+            ip = ipaddress.ip_address(address)
+        except ValueError as exc:
+            raise ValueError("device host resolved to an invalid IP address") from exc
+        if not allow_private and not ip.is_global:
+            raise ValueError("private, loopback, link-local, or reserved device networks are disabled by default")
+        vetted.append(ip)
+    if not vetted:
+        raise ValueError("device host resolved to no permitted addresses")
+
+    # Deterministic choice avoids a second DNS lookup while preserving the strict
+    # policy that every returned address must be permitted.
+    vetted.sort(key=lambda ip: (ip.version, int(ip)))
+    selected = vetted[0]
+    connect_host = f"[{selected}]" if selected.version == 6 else str(selected)
+    default_port = 443 if parsed.scheme == "https" else 80
+    connect_port_suffix = "" if port == default_port else f":{port}"
+    public_port_suffix = f":{port}" if parsed.port is not None else ""
+    original_host_for_header = f"[{hostname}]" if literal_ip is not None and literal_ip.version == 6 else hostname
+    host_header = original_host_for_header + public_port_suffix
+    base_path = parsed.path.rstrip("/")
+    public_base = urlunparse((parsed.scheme, host_header, base_path, "", "", ""))
+    connect_base = f"{parsed.scheme}://{connect_host}{connect_port_suffix}{base_path}"
+    sni_hostname = hostname if parsed.scheme == "https" and literal_ip is None else None
+    return _ResolvedDeviceTarget(public_base, connect_base, host_header, sni_hostname)
+
+
+def _validate_device_url(base_url: str, *, credentialed: bool = False) -> str:
+    return _resolve_device_target(base_url, credentialed=credentialed).public_base_url
+
+
+def _read_bounded_sync_response(response: httpx.Response, max_bytes: int) -> bytes:
+    total = 0
+    chunks: list[bytes] = []
+    for chunk in response.iter_bytes():
+        total += len(chunk)
+        if total > max_bytes:
+            raise ValueError(f"upstream response exceeded {max_bytes} bytes")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _device_request(
+    base_url: str,
+    *,
+    credentialed: bool,
+    method: str,
+    path: str,
+    headers: dict[str, str],
+    payload: Optional[dict[str, Any]],
+    max_response_bytes: int,
+) -> tuple[int, bytes, str]:
+    target = _resolve_device_target(base_url, credentialed=credentialed)
+    request_headers = dict(headers)
+    request_headers["Host"] = target.host_header
+    extensions: dict[str, Any] = {}
+    if target.sni_hostname:
+        extensions["sni_hostname"] = target.sni_hostname
+    with httpx.Client(timeout=15, follow_redirects=False) as client:
+        with client.stream(
+            method,
+            target.connect_base_url + path,
+            headers=request_headers,
+            json=payload,
+            extensions=extensions or None,
+        ) as response:
+            raw = _read_bounded_sync_response(response, max_response_bytes)
+            encoding = response.encoding or "utf-8"
+            return response.status_code, raw, encoding
 
 def _validate_device_action_path(path: str) -> str:
     path = str(path)
@@ -2567,7 +2758,6 @@ def device_action(device_id: str, action: str, payload: dict[str, Any]) -> dict[
         path, payload_schema = _device_action_config(config, action)
         if payload_schema is not None:
             _validate_device_schema(payload_schema, payload)
-        url = base + path
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         return {"success": False, "error": str(exc)}
     headers = {"Content-Type": "application/json"}
@@ -2575,11 +2765,18 @@ def device_action(device_id: str, action: str, payload: dict[str, Any]) -> dict[
     if token:
         headers["Authorization"] = "Bearer " + token
     try:
-        with httpx.Client(timeout=15, follow_redirects=False) as client:
-            response = client.post(url, json=payload, headers=headers)
-        return {"success": 200 <= response.status_code < 300, "status_code": response.status_code, "response_bytes": min(len(response.content), MAX_DEVICE_RESPONSE_BYTES)}
-    except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        status_code, raw, _encoding = _device_request(
+            base,
+            credentialed=bool(token),
+            method="POST",
+            path=path,
+            headers=headers,
+            payload=payload,
+            max_response_bytes=MAX_DEVICE_RESPONSE_BYTES,
+        )
+        return {"success": 200 <= status_code < 300, "status_code": status_code, "response_bytes": len(raw)}
+    except (ValueError, httpx.HTTPError, OSError) as exc:
+        return {"success": False, "error": str(exc)[:1000]}
 
 
 # ----------------------------- smart home -----------------------------
@@ -2601,18 +2798,23 @@ def _smart_home_headers(token: str) -> dict[str, str]:
     return {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer " + token}
 
 def _ha_request(base_url: str, token: str, method: str, path: str, payload: Optional[dict[str, Any]] = None) -> tuple[int, Any]:
-    base = _smart_home_url(base_url)
-    if not path.startswith("/") or ".." in path.split("/"):
+    if not path.startswith("/") or ".." in path.split("/") or "?" in path or "#" in path or "\\" in path:
         raise ValueError("invalid smart-home API path")
-    with httpx.Client(timeout=15, follow_redirects=False) as client:
-        response = client.request(method, base + path, headers=_smart_home_headers(token), json=payload)
-    raw = response.content[:MAX_SMART_HOME_RESPONSE_BYTES]
-    text = raw.decode(response.encoding or "utf-8", errors="replace")
+    status_code, raw, encoding = _device_request(
+        base_url,
+        credentialed=True,
+        method=method,
+        path=path,
+        headers=_smart_home_headers(token),
+        payload=payload,
+        max_response_bytes=MAX_SMART_HOME_RESPONSE_BYTES,
+    )
+    text = raw.decode(encoding, errors="replace")
     try:
         data = json.loads(text) if text else None
     except ValueError:
         data = text
-    return response.status_code, data
+    return status_code, data
 
 def _smart_home_home(home_id: str) -> sqlite3.Row | None:
     with db() as connection:
@@ -2755,10 +2957,22 @@ def automation_rate_limited(automation_id: str, max_runs_per_hour: int) -> bool:
     return int(count) >= max_runs_per_hour
 
 
-def create_automation_run(automation_id: str, trace_id: str, trigger_type: str, event_name: Optional[str]) -> str:
+def create_automation_run(automation_id: str, trace_id: str, trigger_type: str, event_name: Optional[str], occurrence_key: str) -> Optional[str]:
+    """Atomically claim one logical automation occurrence across processes.
+
+    The database uniqueness constraint is the lock. A second Uvicorn worker that
+    observes the same due interval cannot create another run for that occurrence,
+    so it cannot duplicate the side effects.
+    """
     run_id = str(uuid.uuid4())
-    with db() as connection:
-        connection.execute("INSERT INTO automation_runs(id,automation_id,trace_id,trigger_type,event_name,status,started_at) VALUES(?,?,?,?,?,?,?)", (run_id, automation_id, trace_id, trigger_type, event_name, "running", now_iso()))
+    try:
+        with db() as connection:
+            connection.execute(
+                "INSERT INTO automation_runs(id,automation_id,trace_id,trigger_type,event_name,status,occurrence_key,started_at) VALUES(?,?,?,?,?,?,?,?)",
+                (run_id, automation_id, trace_id, trigger_type, event_name, "running", occurrence_key, now_iso()),
+            )
+    except sqlite3.IntegrityError:
+        return None
     return run_id
 
 
@@ -2828,6 +3042,7 @@ async def run_automations(event_name: Optional[str] = None, automation_id: Optio
             rows = connection.execute("SELECT * FROM automations WHERE enabled=1 ORDER BY name").fetchall()
     summary = {"runs": 0, "actions": 0, "waiting_for_approval": 0, "failed": 0}
     now = datetime.now(timezone.utc)
+    event_dispatch_id = str(uuid.uuid4()) if event_name is not None else None
     for row in rows:
         if action_budget <= 0:
             audit(str(uuid.uuid4()), "automation_tick_budget_exhausted", {"limit": MAX_AUTOMATION_ACTIONS_PER_TICK})
@@ -2856,7 +3071,18 @@ async def run_automations(event_name: Optional[str] = None, automation_id: Optio
             actions = json.loads(row["actions_json"])
             run_budget = min(max(1, int(row["action_budget"] or MAX_AUTOMATION_RUN_ACTIONS)), MAX_AUTOMATION_RUN_ACTIONS, len(actions))
             trace_id = str(uuid.uuid4())
-            run_id = create_automation_run(row["id"], trace_id, trigger_type, event_name)
+            if event_dispatch_id is not None:
+                occurrence_key = f"event:{event_name}:{event_dispatch_id}"
+            elif trigger_type == "interval" and not automation_id:
+                interval = int(trigger.get("interval_seconds", 0))
+                occurrence_key = f"interval:{int(now.timestamp()) // interval}"
+            else:
+                # Explicit manual requests are distinct user-authorized occurrences.
+                occurrence_key = f"manual:{uuid.uuid4()}"
+            run_id = create_automation_run(row["id"], trace_id, trigger_type, event_name, occurrence_key)
+            if run_id is None:
+                audit(trace_id, "automation_occurrence_already_claimed", {"automation_id": row["id"], "occurrence_key": occurrence_key})
+                continue
             attempted = succeeded = failed = 0
             waiting = None
             run_status = "completed"
@@ -2986,7 +3212,7 @@ async def _resume_approved_automation(approval_row: sqlite3.Row) -> dict[str, An
         success = False
         max_retries = min(max(0, int(action.get("max_retries", 0))), MAX_AUTOMATION_ACTION_RETRIES)
         # Never automatically retry privileged side effects.
-        if TOOLS[tool].risk >= 2:
+        if tool_risk(tool, args) >= 2:
             max_retries = 0
         while attempts <= max_retries:
             attempted += 1
@@ -3344,8 +3570,7 @@ def validate_tool_endpoint(item: ToolValidateIn, authorization: Optional[str] = 
         normalized = validate_tool_args(item.tool, item.arguments)
     except (ValueError, HTTPException) as exc:
         return {"valid": False, "tool": item.tool, "error": str(exc)}
-    spec = TOOL_REGISTRY.require(item.tool)
-    return {"valid": True, "tool": item.tool, "arguments": normalized, "risk": spec.risk}
+    return {"valid": True, "tool": item.tool, "arguments": normalized, "risk": tool_risk(item.tool, normalized)}
 
 
 @app.post("/v1/agent/run")
@@ -3592,6 +3817,7 @@ def register_device_key(item: DeviceKeyIn, authorization: Optional[str] = Header
 @app.get("/v1/approvals/{approval_id}/challenge")
 def biometric_challenge(approval_id: str, authorization: Optional[str] = Header(default=None)) -> dict[str, Any]:
     require_auth(authorization)
+    expire_pending_approvals()
     with db() as connection:
         approval_row = connection.execute("SELECT * FROM approvals WHERE id=?", (approval_id,)).fetchone()
     if not approval_row:
@@ -3609,9 +3835,19 @@ def biometric_challenge(approval_id: str, authorization: Optional[str] = Header(
     return {"approval_id": approval_id, "challenge": challenge, "expires_at": expires}
 
 
+def expire_pending_approvals() -> int:
+    with db() as connection:
+        cursor = connection.execute(
+            "UPDATE approvals SET status='expired' WHERE status='pending' AND expires_at<=?",
+            (now_iso(),),
+        )
+    return int(cursor.rowcount)
+
+
 @app.get("/v1/approvals")
 def approvals(authorization: Optional[str] = Header(default=None)) -> dict[str, Any]:
     require_auth(authorization)
+    expire_pending_approvals()
     with db() as connection:
         rows = connection.execute("SELECT id,tool,args_json,risk,status,created_at,expires_at,biometric_required,args_hash FROM approvals WHERE status='pending' ORDER BY created_at DESC").fetchall()
     approvals_out = []
@@ -4192,7 +4428,7 @@ def add_smart_home(item: dict[str, Any], authorization: Optional[str] = Header(d
     if not 1 <= len(name) <= 120 or provider != "home_assistant" or not token:
         raise HTTPException(400, "invalid smart-home configuration")
     try:
-        _smart_home_url(base_url)
+        _validate_device_url(base_url, credentialed=True)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     with db() as connection:
@@ -4264,7 +4500,7 @@ def add_device(item: DeviceIn, authorization: Optional[str] = Header(default=Non
     if item.kind != "http":
         raise HTTPException(400, "Unsupported device adapter")
     try:
-        _validate_device_url(str(item.config.get("base_url", "")))
+        _validate_device_url(str(item.config.get("base_url", "")), credentialed=bool(str(item.config.get("token", "")).strip()))
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     actions = item.config.get("actions", {})

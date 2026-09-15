@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import sqlite3
 import tempfile
 from pathlib import Path
 from PIL import Image
@@ -20,6 +21,16 @@ from fastapi.testclient import TestClient
 from backend import main
 
 client = TestClient(main.app)
+
+
+def test_v58_db_context_manager_closes_connection():
+    connection = None
+    with main.db() as opened:
+        connection = opened
+        assert connection.execute("SELECT 1").fetchone()[0] == 1
+    assert connection is not None
+    with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
+        connection.execute("SELECT 1")
 
 
 def test_health_and_schema():
@@ -242,6 +253,7 @@ def test_device_validation(monkeypatch):
     bad = client.post("/v1/devices", json={"name": "bad", "kind": "http", "config": {"base_url": "not-a-url", "actions": {"on": "/on"}}})
     assert bad.status_code == 400
     monkeypatch.setenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "true")
+    monkeypatch.setenv("POTATO_ALLOW_INSECURE_DEVICE_HTTP", "true")
     good = client.post("/v1/devices", json={"name": "test", "kind": "http", "config": {"base_url": "http://127.0.0.1:9999", "token": "device-secret", "actions": {"on": "/on"}}})
     assert good.status_code == 200
     device_id = good.json()["id"]
@@ -1142,6 +1154,7 @@ def test_automation_update_enable_disable():
 
 def test_smart_home_home_crud_and_secret_redaction(monkeypatch):
     monkeypatch.setenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "true")
+    monkeypatch.setenv("POTATO_ALLOW_INSECURE_DEVICE_HTTP", "true")
     created = client.post("/v1/smart-home/homes", json={
         "name": "Home",
         "provider": "home_assistant",
@@ -1158,6 +1171,7 @@ def test_smart_home_home_crud_and_secret_redaction(monkeypatch):
 
 def test_smart_home_action_is_approval_gated(monkeypatch):
     monkeypatch.setenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "true")
+    monkeypatch.setenv("POTATO_ALLOW_INSECURE_DEVICE_HTTP", "true")
     created = client.post("/v1/smart-home/homes", json={
         "name": "Home",
         "provider": "home_assistant",
@@ -1176,6 +1190,7 @@ def test_smart_home_action_is_approval_gated(monkeypatch):
 
 def test_smart_home_rejects_unsupported_action(monkeypatch):
     monkeypatch.setenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "true")
+    monkeypatch.setenv("POTATO_ALLOW_INSECURE_DEVICE_HTTP", "true")
     created = client.post("/v1/smart-home/homes", json={"name":"Home","provider":"home_assistant","base_url":"http://127.0.0.1:8123","token":"secret-token"})
     home_id = created.json()["id"]
     response = client.post("/v1/smart-home/action", json={"home_id": home_id, "device_id":"missing", "action":"camera.record","payload":{}})
@@ -1185,6 +1200,7 @@ def test_smart_home_rejects_unsupported_action(monkeypatch):
 
 def test_smart_home_state_discovers_allowed_entities(monkeypatch):
     monkeypatch.setenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "true")
+    monkeypatch.setenv("POTATO_ALLOW_INSECURE_DEVICE_HTTP", "true")
     created = client.post("/v1/smart-home/homes", json={"name":"Home","provider":"home_assistant","base_url":"http://127.0.0.1:8123","token":"secret-token"})
     home_id = created.json()["id"]
     def fake_request(base_url, token, method, path, payload=None):
@@ -1490,12 +1506,15 @@ def test_v57_sqlite_secure_delete_enabled():
 def test_v58_device_success_result_schema_accepts_real_response_shape(monkeypatch):
     class Response:
         status_code = 204
-        content = b"ok"
+        encoding = "utf-8"
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def iter_bytes(self): yield b"ok"
     class Client:
         def __init__(self, *args, **kwargs): pass
         def __enter__(self): return self
         def __exit__(self, *args): pass
-        def post(self, *args, **kwargs): return Response()
+        def stream(self, *args, **kwargs): return Response()
     monkeypatch.setenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "true")
     monkeypatch.setattr(main.httpx, "Client", Client)
     created = client.post("/v1/devices", json={
@@ -1512,6 +1531,7 @@ def test_v58_device_success_result_schema_accepts_real_response_shape(monkeypatc
 
 def test_v58_smart_home_success_result_schema_accepts_real_response_shape(monkeypatch):
     monkeypatch.setenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "true")
+    monkeypatch.setenv("POTATO_ALLOW_INSECURE_DEVICE_HTTP", "true")
     created = client.post("/v1/smart-home/homes", json={
         "name":"Schema Home", "provider":"home_assistant",
         "base_url":"http://127.0.0.1:8123", "token":"secret-token",
@@ -1598,3 +1618,165 @@ def test_v58_manual_endpoint_deny_does_not_create_approval(monkeypatch):
     assert response.status_code == 403
     after = len(client.get("/v1/approvals").json()["approvals"])
     assert after == before
+
+
+# ---------------- V5.8 zero-patch root-cause regression gates ----------------
+
+def test_v58_approval_hash_binds_normalized_executor_arguments():
+    approval_id = main.create_approval("remember", {"content": "  exact memory  "}, 2)
+    with main.db() as connection:
+        row = connection.execute("SELECT args_json,args_hash FROM approvals WHERE id=?", (approval_id,)).fetchone()
+    normalized = main.validate_tool_args("remember", {"content": "  exact memory  "})
+    assert json.loads(row["args_json"]) == normalized
+    assert row["args_hash"] == main.hash_args(normalized)
+    assert normalized == {"content": "exact memory", "memory_type": "semantic", "importance": 0.5}
+
+
+def test_v58_security_hash_rejects_non_json_and_non_finite_values():
+    with pytest.raises((TypeError, ValueError)):
+        main.hash_args({"x": object()})
+    with pytest.raises(ValueError):
+        main.hash_args({"x": float("nan")})
+
+
+def test_v58_chat_denied_tool_never_creates_approval(monkeypatch):
+    calls = 0
+    async def fake_openai_response(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return {"id":"deny-v58", "output":[{"type":"function_call","name":"device_action","call_id":"c1","arguments":json.dumps({"device_id":"missing","action":"on","payload":{}})}]}
+        return {"id":"deny-v58-2", "output":[], "output_text":"done"}
+    monkeypatch.setattr(main, "openai_response", fake_openai_response)
+    monkeypatch.setattr(main, "security_decision", lambda *a, **k: {"decision":"denied","risk":4,"error":"policy denied","args_hash":"x"})
+    before = client.get("/v1/approvals").json()["approvals"]
+    reply, events = asyncio.run(main.ai_chat("do the forbidden thing", "deny-chat-v58", False))
+    after = client.get("/v1/approvals").json()["approvals"]
+    assert len(after) == len(before)
+    assert any(e.get("status") == "blocked" for e in events)
+    assert reply == "done"
+
+
+def test_v58_chat_web_egress_uses_only_explicit_user_message(monkeypatch):
+    observed = {"web": [], "tools": None, "prompt": None}
+    async def fake_web(query, domains=None):
+        observed["web"].append(query)
+        return {"answer":"public result", "citations":[]}
+    async def fake_openai_response(input_items, **kwargs):
+        observed["prompt"] = input_items
+        observed["tools"] = kwargs.get("tools")
+        return {"id":"web-private-v58", "output":[], "output_text":"safe answer"}
+    monkeypatch.setattr(main, "web_search_query", fake_web)
+    monkeypatch.setattr(main, "openai_response", fake_openai_response)
+    main.ensure_session("web-private-v58")
+    with main.db() as connection:
+        connection.execute("INSERT INTO memories(id,type,content,importance,confidence,source,created_at,updated_at,expires_at,consented,explicit) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                           ("private-egress-v58","semantic","PRIVATE-NEVER-SEARCH-ME",1.0,1.0,"test",main.now_iso(),main.now_iso(),None,1,1))
+    reply, _ = asyncio.run(main.ai_chat("latest potato news", "web-private-v58", True))
+    assert reply == "safe answer"
+    assert observed["web"] == ["latest potato news"]
+    assert "PRIVATE-NEVER-SEARCH-ME" in observed["prompt"]
+    assert all(tool.get("name") != "web_search" for tool in observed["tools"])
+
+
+def test_v58_smart_home_risk_is_action_specific():
+    low = main.validate_tool_args("smart_home_action", {"home_id":"h","device_id":"d","action":"light.turn_on","payload":{}})
+    high = main.validate_tool_args("smart_home_action", {"home_id":"h","device_id":"d","action":"lock.unlock","payload":{}})
+    assert main.tool_risk("smart_home_action", low) == 2
+    assert main.tool_risk("smart_home_action", high) == 3
+    assert client.post("/v1/tools/validate", json={"tool":"smart_home_action","arguments":low}).json()["risk"] == 2
+
+
+def test_v58_credentialed_http_requires_explicit_dev_opt_in(monkeypatch):
+    monkeypatch.setenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "true")
+    monkeypatch.delenv("POTATO_ALLOW_INSECURE_DEVICE_HTTP", raising=False)
+    with pytest.raises(ValueError, match="require HTTPS"):
+        main._validate_device_url("http://127.0.0.1:8123", credentialed=True)
+    monkeypatch.setenv("POTATO_ALLOW_INSECURE_DEVICE_HTTP", "true")
+    assert main._validate_device_url("http://127.0.0.1:8123", credentialed=True) == "http://127.0.0.1:8123"
+    monkeypatch.setenv("POTATO_ENV", "production")
+    with pytest.raises(ValueError, match="require HTTPS"):
+        main._validate_device_url("http://127.0.0.1:8123", credentialed=True)
+
+
+def test_v58_device_dns_is_pinned_to_vetted_ip_with_original_sni(monkeypatch):
+    monkeypatch.setenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "true")
+    monkeypatch.setenv("POTATO_DEVICE_HOST_ALLOWLIST", "home.example")
+    monkeypatch.setenv("POTATO_ENV", "production")
+    queries = []
+    def fake_getaddrinfo(host, port, **kwargs):
+        queries.append((host, port))
+        return [(2, 1, 6, "", ("203.0.113.9", port))]
+    # TEST-NET-3 is not global according to ipaddress; use a real public-shaped address.
+    def public_getaddrinfo(host, port, **kwargs):
+        queries.append((host, port))
+        return [(2, 1, 6, "", ("8.8.8.8", port))]
+    monkeypatch.setattr(main.socket, "getaddrinfo", public_getaddrinfo)
+    target = main._resolve_device_target("https://home.example:8443/api", credentialed=True)
+    assert queries == [("home.example", 8443)]
+    assert target.connect_base_url == "https://8.8.8.8:8443/api"
+    assert target.host_header == "home.example:8443"
+    assert target.sni_hostname == "home.example"
+
+
+def test_v58_bounded_device_response_fails_closed_before_buffering(monkeypatch):
+    class Response:
+        status_code = 200
+        encoding = "utf-8"
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def iter_bytes(self):
+            yield b"1234"
+            yield b"5678"
+    class Client:
+        def __init__(self, *args, **kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def stream(self, *args, **kwargs): return Response()
+    monkeypatch.setenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "true")
+    monkeypatch.setattr(main.httpx, "Client", Client)
+    with pytest.raises(ValueError, match="exceeded 5 bytes"):
+        main._device_request("http://127.0.0.1:9999", credentialed=False, method="GET", path="/x", headers={}, payload=None, max_response_bytes=5)
+
+
+def test_v58_required_device_payload_schema_is_validated_against_real_payload(monkeypatch):
+    monkeypatch.setenv("POTATO_ALLOW_PRIVATE_DEVICE_NETWORKS", "true")
+    created = client.post("/v1/devices", json={
+        "name":"required-schema-v58", "kind":"http",
+        "config":{"base_url":"http://127.0.0.1:8766","actions":{"set":{"path":"/set","payload_schema":{"type":"object","properties":{"level":{"type":"integer","minimum":0,"maximum":100}},"required":["level"],"additionalProperties":False}}}},
+    })
+    assert created.status_code == 200
+    did = created.json()["id"]
+    assert main.device_action(did, "set", {})["success"] is False
+    # Valid payload reaches transport; replace transport only after schema acceptance.
+    monkeypatch.setattr(main, "_device_request", lambda *a, **k: (204, b"", "utf-8"))
+    assert main.device_action(did, "set", {"level":50})["success"] is True
+
+
+
+def test_v58_expired_approvals_are_not_returned_as_actionable():
+    approval_id = main.create_approval("write_note", {"filename":"expired-v58.txt","content":"x"}, 2)
+    with main.db() as connection:
+        connection.execute("UPDATE approvals SET expires_at=? WHERE id=?", ("2000-01-01T00:00:00+00:00", approval_id))
+    listed = client.get("/v1/approvals").json()["approvals"]
+    assert all(item["id"] != approval_id for item in listed)
+    with main.db() as connection:
+        assert connection.execute("SELECT status FROM approvals WHERE id=?", (approval_id,)).fetchone()["status"] == "expired"
+
+
+
+def test_v58_automation_occurrence_claim_is_atomic():
+    created = client.post("/v1/automations", json={
+        "name":"claim-v58", "trigger":{"type":"manual"},
+        "actions":[{"tool":"get_time","arguments":{}}],
+    })
+    assert created.status_code == 200
+    aid = created.json()["id"]
+    key = "interval:12345"
+    first = main.create_automation_run(aid, "trace-1", "interval", None, key)
+    second = main.create_automation_run(aid, "trace-2", "interval", None, key)
+    assert first is not None
+    assert second is None
+    with main.db() as connection:
+        count = connection.execute("SELECT COUNT(*) FROM automation_runs WHERE automation_id=? AND occurrence_key=?", (aid, key)).fetchone()[0]
+    assert count == 1
