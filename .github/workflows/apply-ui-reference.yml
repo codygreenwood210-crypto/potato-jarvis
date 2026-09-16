@@ -1,0 +1,53 @@
+name: Apply POTATO UI Reference Integration
+
+on:
+  push:
+    branches: [potato-v5.8-ui-reference]
+    paths:
+      - 'scripts/apply_ui_reference.py'
+      - '.github/workflows/apply-ui-reference.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: potato-ui-apply-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply-ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout UI branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: potato-v5.8-ui-reference
+          fetch-depth: 0
+
+      - name: Apply deterministic UI integration
+        run: python scripts/apply_ui_reference.py
+
+      - name: Verify intended source changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff -- android/src/main/java/com/potato/jarvis/MainActivity.kt
+          grep -F 'PotatoAppShell(' android/src/main/java/com/potato/jarvis/MainActivity.kt
+          grep -F 'PotatoChatLanding(' android/src/main/java/com/potato/jarvis/MainActivity.kt
+          grep -F 'PotatoComposer(' android/src/main/java/com/potato/jarvis/MainActivity.kt
+
+      - name: Commit integrated UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- android/src/main/java/com/potato/jarvis/MainActivity.kt; then
+            echo 'Reference UI already integrated'
+            exit 0
+          fi
+          git config user.name 'POTATO UI Team'
+          git config user.email 'actions@users.noreply.github.com'
+          git add android/src/main/java/com/potato/jarvis/MainActivity.kt
+          git commit -m 'ui: integrate reference dashboard shell and chat'
+          git push origin HEAD:potato-v5.8-ui-reference
