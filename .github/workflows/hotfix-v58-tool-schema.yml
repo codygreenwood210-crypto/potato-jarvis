@@ -1,0 +1,74 @@
+name: Hotfix V5.8 OpenAI tool schema
+
+on:
+  push:
+    branches: [potato-v5.8-final]
+    paths:
+      - .github/workflows/hotfix-v58-tool-schema.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: potato-v5.8-final
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Apply provider tool-schema compatibility fix
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('backend/main.py')
+          text = path.read_text(encoding='utf-8')
+          old = '{"type": "function", "name": spec.name, "description": spec.description, "parameters": spec.args_schema, "strict": True}'
+          new = '{"type": "function", "name": spec.name, "description": spec.description, "parameters": spec.args_schema, "strict": set(spec.args_schema.get("required", [])) == set(spec.args_schema.get("properties", {}).keys())}'
+          count = text.count(old)
+          if count == 1:
+              path.write_text(text.replace(old, new), encoding='utf-8')
+          elif new in text:
+              print('Compatibility fix already present')
+          else:
+              raise SystemExit(f'Expected exactly one target function definition, found {count}')
+          PY
+
+      - name: Install backend test dependencies
+        run: python -m pip install -r backend/requirements.txt
+
+      - name: Run full backend regression suite
+        run: python -m pytest -q backend/tests
+
+      - name: Verify tool strictness selection
+        run: |
+          python - <<'PY'
+          from backend.main import TOOL_REGISTRY
+          definitions = {item['name']: item for item in TOOL_REGISTRY.function_definitions()}
+          assert definitions['write_note']['strict'] is True
+          assert definitions['remember']['strict'] is False
+          assert definitions['device_action']['strict'] is False
+          assert definitions['smart_home_action']['strict'] is False
+          print('TOOL_SCHEMA_COMPATIBILITY=PASS')
+          PY
+
+      - name: Commit exact tested fix
+        shell: bash
+        run: |
+          if git diff --quiet -- backend/main.py; then
+            echo 'No source change required'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/main.py
+          git commit -m 'fix: make OpenAI tool strictness schema-compatible'
+          git push origin HEAD:potato-v5.8-final
