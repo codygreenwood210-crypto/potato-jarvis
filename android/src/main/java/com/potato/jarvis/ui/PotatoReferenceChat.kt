@@ -57,22 +57,29 @@ fun PotatoChatLanding(
     BoxWithConstraints(modifier.fillMaxSize()) {
         val wide = maxWidth >= 760.dp
         Column(
-            Modifier.fillMaxSize().padding(horizontal = if (wide) 28.dp else 16.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            Modifier.fillMaxSize().padding(horizontal = if (wide) 22.dp else 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (wide) {
-                Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    Column(Modifier.weight(1.55f), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                        PotatoWelcomeHero(online = online, modifier = Modifier.fillMaxWidth())
-                        PotatoTaskPreview(tasks = tasks, modifier = Modifier.fillMaxWidth().weight(1f))
-                    }
-                    Column(Modifier.weight(0.78f), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                        PotatoScenicCard(Modifier.fillMaxWidth().weight(1f))
-                        PotatoQuoteCard(Modifier.fillMaxWidth())
-                    }
+                Box(Modifier.fillMaxWidth().weight(0.95f)) {
+                    PotatoHeroScenery(Modifier.fillMaxSize())
+                    PotatoWelcomeHero(
+                        online = online,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                Row(
+                    Modifier.fillMaxWidth().weight(0.66f),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    PotatoTaskPreview(tasks = tasks, modifier = Modifier.weight(1.52f).fillMaxHeight())
+                    PotatoQuoteCard(Modifier.weight(0.78f).fillMaxHeight())
                 }
             } else {
-                PotatoWelcomeHero(online = online, modifier = Modifier.fillMaxWidth())
+                Box(Modifier.fillMaxWidth().height(260.dp)) {
+                    PotatoHeroScenery(Modifier.fillMaxSize())
+                    PotatoWelcomeHero(online = online, modifier = Modifier.fillMaxSize())
+                }
                 PotatoTaskPreview(tasks = tasks, modifier = Modifier.fillMaxWidth().weight(1f))
             }
             PotatoQuickActions(
@@ -86,46 +93,182 @@ fun PotatoChatLanding(
 }
 
 @Composable
-private fun PotatoWelcomeHero(online: Boolean, modifier: Modifier = Modifier) {
-    PotatoPanel(modifier = modifier, padding = 22.dp) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            PotatoMascot(
-                Modifier.size(112.dp),
-                expression = if (online) PotatoMascotExpression.HAPPY else PotatoMascotExpression.SLEEPY,
+private fun PotatoHeroScenery(modifier: Modifier = Modifier) {
+    Box(
+        modifier.background(
+            Brush.horizontalGradient(
+                listOf(
+                    PotatoVisuals.Black,
+                    Color(0xFF071412),
+                    Color(0xFF0A2722),
+                    Color(0xFF0B342C),
+                )
             )
-            Column(Modifier.weight(1f)) {
-                Text(
-                    "Hey Cody 👋",
-                    color = PotatoVisuals.TextPrimary,
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Black,
+        )
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val moon = Offset(w * 0.82f, h * 0.23f)
+            drawCircle(Color(0x163DE8B3), radius = size.minDimension * 0.23f, center = moon)
+            drawCircle(Color(0x354EDAB7), radius = size.minDimension * 0.15f, center = moon)
+            drawCircle(Color(0xFFE5EEB4), radius = size.minDimension * 0.095f, center = moon)
+
+            listOf(
+                Offset(w * 0.48f, h * 0.16f),
+                Offset(w * 0.56f, h * 0.10f),
+                Offset(w * 0.65f, h * 0.20f),
+                Offset(w * 0.74f, h * 0.12f),
+                Offset(w * 0.91f, h * 0.13f),
+            ).forEachIndexed { index, star ->
+                drawCircle(if (index % 2 == 0) Color(0x88D5F7E9) else Color(0x55FFFFFF), 1.5f + (index % 2), star)
+            }
+
+            fun ridge(points: List<Offset>, color: Color) {
+                val path = Path().apply {
+                    moveTo(w * 0.40f, h)
+                    lineTo(w * 0.40f, points.first().y)
+                    points.forEach { lineTo(it.x, it.y) }
+                    lineTo(w, points.last().y)
+                    lineTo(w, h)
+                    close()
+                }
+                drawPath(path, color)
+            }
+
+            ridge(
+                listOf(
+                    Offset(w * 0.47f, h * 0.58f),
+                    Offset(w * 0.59f, h * 0.23f),
+                    Offset(w * 0.66f, h * 0.48f),
+                    Offset(w * 0.75f, h * 0.17f),
+                    Offset(w * 0.84f, h * 0.49f),
+                    Offset(w * 0.93f, h * 0.31f),
+                    Offset(w, h * 0.44f),
+                ),
+                Color(0xFF1A4B40),
+            )
+            ridge(
+                listOf(
+                    Offset(w * 0.43f, h * 0.70f),
+                    Offset(w * 0.55f, h * 0.43f),
+                    Offset(w * 0.67f, h * 0.65f),
+                    Offset(w * 0.78f, h * 0.37f),
+                    Offset(w * 0.89f, h * 0.67f),
+                    Offset(w, h * 0.53f),
+                ),
+                Color(0xFF10332D),
+            )
+            ridge(
+                listOf(
+                    Offset(w * 0.41f, h * 0.80f),
+                    Offset(w * 0.54f, h * 0.61f),
+                    Offset(w * 0.66f, h * 0.78f),
+                    Offset(w * 0.79f, h * 0.58f),
+                    Offset(w * 0.91f, h * 0.77f),
+                    Offset(w, h * 0.67f),
+                ),
+                Color(0xFF091F1C),
+            )
+
+            val lake = Path().apply {
+                moveTo(w * 0.47f, h * 0.74f)
+                quadraticBezierTo(w * 0.72f, h * 0.64f, w * 0.96f, h * 0.76f)
+                lineTo(w * 0.90f, h * 0.96f)
+                quadraticBezierTo(w * 0.70f, h * 0.84f, w * 0.50f, h * 0.94f)
+                close()
+            }
+            drawPath(
+                lake,
+                Brush.verticalGradient(
+                    listOf(Color(0x7759C9A9), Color(0x1919C37D)),
+                    startY = h * 0.65f,
+                    endY = h,
+                ),
+            )
+            drawLine(Color(0x557CE8C7), Offset(w * 0.63f, h * 0.78f), Offset(w * 0.86f, h * 0.78f), 2f)
+            drawLine(Color(0x333DC69D), Offset(w * 0.57f, h * 0.84f), Offset(w * 0.90f, h * 0.84f), 1.5f)
+
+            fun pine(x: Float, base: Float, height: Float, color: Color) {
+                val tree = Path().apply {
+                    moveTo(x, base - height)
+                    lineTo(x - height * 0.23f, base - height * 0.49f)
+                    lineTo(x - height * 0.10f, base - height * 0.51f)
+                    lineTo(x - height * 0.31f, base - height * 0.17f)
+                    lineTo(x + height * 0.31f, base - height * 0.17f)
+                    lineTo(x + height * 0.10f, base - height * 0.51f)
+                    lineTo(x + height * 0.23f, base - height * 0.49f)
+                    close()
+                }
+                drawPath(tree, color)
+            }
+            for (i in 0..9) {
+                val x = w * (0.46f + i * 0.058f)
+                val treeHeight = h * (0.14f + (i % 3) * 0.018f)
+                pine(x, h * 0.95f, treeHeight, if (i % 2 == 0) Color(0xFF061512) else Color(0xFF081B17))
+            }
+        }
+
+        Text(
+            "Small steps, bigger things. 🌱",
+            color = PotatoVisuals.BrandSoft,
+            style = MaterialTheme.typography.labelLarge,
+            fontStyle = FontStyle.Italic,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 18.dp),
+        )
+    }
+}
+
+@Composable
+private fun PotatoWelcomeHero(online: Boolean, modifier: Modifier = Modifier) {
+    Box(modifier.padding(horizontal = 26.dp, vertical = 18.dp)) {
+        Column(
+            Modifier.align(Alignment.CenterStart).widthIn(max = 610.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                PotatoMascot(
+                    Modifier.size(126.dp),
+                    expression = if (online) PotatoMascotExpression.HAPPY else PotatoMascotExpression.SLEEPY,
                 )
-                Text(
-                    "What can I help you with today?",
-                    color = PotatoVisuals.TextSecondary,
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                Spacer(Modifier.height(14.dp))
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = PotatoVisuals.SurfaceRaised.copy(alpha = 0.9f),
-                    modifier = Modifier.border(1.dp, PotatoVisuals.Border, RoundedCornerShape(18.dp)),
-                ) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(
-                            "I'm here to help you think, plan, create, and get things done.",
-                            color = PotatoVisuals.TextPrimary,
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                        Text(
-                            "Same goals. Brighter days. 🌱",
-                            color = PotatoVisuals.BrandBright,
-                            fontStyle = FontStyle.Italic,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(top = 6.dp),
-                        )
-                    }
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Hey Cody 👋",
+                        color = PotatoVisuals.TextPrimary,
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Black,
+                    )
+                    Text(
+                        "What can I help you with today?",
+                        color = PotatoVisuals.TextSecondary,
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
+            }
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = PotatoVisuals.SurfaceRaised.copy(alpha = 0.88f),
+                modifier = Modifier
+                    .widthIn(max = 540.dp)
+                    .border(1.dp, PotatoVisuals.Border, RoundedCornerShape(20.dp)),
+            ) {
+                Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
+                    Text(
+                        "I'm here to help you think, plan, create, and get things done.",
+                        color = PotatoVisuals.TextPrimary,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        "Same goals. Brighter days. 🌱",
+                        color = PotatoVisuals.BrandBright,
+                        fontStyle = FontStyle.Italic,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 5.dp),
+                    )
                 }
             }
         }
@@ -177,7 +320,7 @@ private fun PotatoTaskPreview(tasks: List<TaskStatus>, modifier: Modifier = Modi
 private fun PotatoTaskRow(task: TaskStatus) {
     val done = task.status == "completed"
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 9.dp),
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -199,11 +342,30 @@ private fun PotatoTaskRow(task: TaskStatus) {
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            if (done) "Completed! 🎉" else task.dueAt?.take(10) ?: task.priority,
+            taskTimeLabel(task),
             color = if (done) PotatoVisuals.BrandBright else PotatoVisuals.TextSecondary,
             style = MaterialTheme.typography.labelMedium,
         )
     }
+}
+
+private fun taskTimeLabel(task: TaskStatus): String {
+    if (task.status == "completed") return "Completed! 🎉"
+    val due = task.dueAt ?: return when (task.priority) {
+        "urgent" -> "Urgent"
+        "high" -> "High priority"
+        "low" -> "Low priority"
+        else -> "Today"
+    }
+    val match = Regex("""T(\d{2}):(\d{2})""").find(due) ?: return "Today"
+    val hour24 = match.groupValues[1].toIntOrNull() ?: return "Today"
+    val minute = match.groupValues[2]
+    val suffix = if (hour24 < 12) "AM" else "PM"
+    val hour12 = when (val value = hour24 % 12) {
+        0 -> 12
+        else -> value
+    }
+    return "$hour12:$minute $suffix"
 }
 
 @Composable

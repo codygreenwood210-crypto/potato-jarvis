@@ -2,6 +2,7 @@ package com.potato.jarvis.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -93,43 +95,47 @@ fun PotatoAppShell(
 
 @Composable
 private fun PotatoTopBar(online: Boolean, compact: Boolean, onScreenSelected: (Screen) -> Unit) {
-    Surface(color = PotatoVisuals.Black.copy(alpha = 0.72f), tonalElevation = 0.dp) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = if (compact) 14.dp else 24.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    Surface(color = PotatoVisuals.Black.copy(alpha = 0.78f), tonalElevation = 0.dp) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(if (compact) 66.dp else 78.dp)
+                .padding(horizontal = if (compact) 14.dp else 22.dp),
         ) {
-            PotatoBrand(online = online, compact = compact)
-            Spacer(Modifier.weight(1f))
-            if (!compact) {
-                Text(
-                    "Good ideas happen here  ·  small steps, bigger things",
-                    color = PotatoVisuals.TextSecondary,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                Spacer(Modifier.width(14.dp))
-                Text(
-                    "⌕",
-                    color = PotatoVisuals.TextPrimary,
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(13.dp))
-                        .background(PotatoVisuals.SurfaceRaised)
-                        .clickable { onScreenSelected(Screen.TOOLS) }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                )
-                Spacer(Modifier.width(7.dp))
-                Text(
-                    "⚙",
-                    color = PotatoVisuals.TextPrimary,
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(13.dp))
-                        .background(PotatoVisuals.SurfaceRaised)
-                        .clickable { onScreenSelected(Screen.SETTINGS) }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                )
+            if (compact) {
+                Box(Modifier.align(Alignment.CenterStart)) {
+                    PotatoBrand(online = online, compact = true)
+                }
+            } else {
+                Box(Modifier.align(Alignment.Center)) {
+                    PotatoBrand(online = online, compact = false)
+                }
+            }
+            Row(
+                Modifier.align(Alignment.CenterEnd),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (!compact) {
+                    PotatoTopAction("⌕") { onScreenSelected(Screen.TOOLS) }
+                    PotatoTopAction("⚙") { onScreenSelected(Screen.SETTINGS) }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun PotatoTopAction(symbol: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(42.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(PotatoVisuals.SurfaceRaised.copy(alpha = 0.92f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(symbol, color = PotatoVisuals.TextPrimary, style = MaterialTheme.typography.titleLarge)
     }
 }
 
@@ -141,43 +147,54 @@ private fun PotatoNavigationRail(
 ) {
     var moreOpen by remember { mutableStateOf(false) }
     NavigationRail(
-        modifier = modifier.background(PotatoVisuals.Black.copy(alpha = 0.92f)).padding(vertical = 18.dp),
-        containerColor = PotatoVisuals.Black.copy(alpha = 0.92f),
-        header = {
-            Spacer(Modifier.height(8.dp))
-        },
+        modifier = modifier.background(PotatoVisuals.Black.copy(alpha = 0.94f)).padding(vertical = 14.dp),
+        containerColor = PotatoVisuals.Black.copy(alpha = 0.94f),
+        header = { Spacer(Modifier.height(10.dp)) },
     ) {
         primaryDestinations.forEach { destination ->
             val selected = destination.screen == screen || (destination.screen == null && moreDestinations.any { it.first == screen })
-            Box {
-                NavigationRailItem(
-                    selected = selected,
-                    onClick = {
-                        if (destination.screen != null) onScreenSelected(destination.screen)
-                        else moreOpen = true
-                    },
-                    icon = {
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (selected) PotatoVisuals.Brand.copy(alpha = 0.17f) else androidx.compose.ui.graphics.Color.Transparent)
-                                .padding(horizontal = 9.dp, vertical = 5.dp)
-                        ) {
-                            Text(
-                                destination.symbol,
-                                color = if (selected) PotatoVisuals.BrandBright else PotatoVisuals.TextSecondary,
-                                fontWeight = FontWeight.Bold,
-                            )
+            Box(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(if (selected) PotatoVisuals.Brand.copy(alpha = 0.18f) else androidx.compose.ui.graphics.Color.Transparent)
+                        .clickable {
+                            if (destination.screen != null) onScreenSelected(destination.screen)
+                            else moreOpen = true
                         }
-                    },
-                    label = {
+                        .padding(horizontal = 9.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier
+                            .width(4.dp)
+                            .height(34.dp)
+                            .background(
+                                if (selected) PotatoVisuals.BrandBright else androidx.compose.ui.graphics.Color.Transparent,
+                                RoundedCornerShape(3.dp),
+                            )
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column(
+                        Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            destination.symbol,
+                            color = if (selected) PotatoVisuals.BrandBright else PotatoVisuals.TextSecondary,
+                            fontWeight = FontWeight.Black,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
                         Text(
                             destination.label,
-                            color = if (selected) PotatoVisuals.BrandBright else PotatoVisuals.TextSecondary,
+                            color = if (selected) PotatoVisuals.TextPrimary else PotatoVisuals.TextSecondary,
                             style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                         )
-                    },
-                )
+                    }
+                }
                 if (destination.screen == null) {
                     DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
                         moreDestinations.forEach { (target, label) ->
@@ -199,7 +216,7 @@ private fun PotatoNavigationRail(
         Text("Steps", color = PotatoVisuals.TextSecondary, style = MaterialTheme.typography.labelMedium)
         Text("Bigger", color = PotatoVisuals.TextSecondary, style = MaterialTheme.typography.labelMedium)
         Text("Things", color = PotatoVisuals.TextSecondary, style = MaterialTheme.typography.labelMedium)
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(12.dp))
         Text("POTATO", color = PotatoVisuals.BrandBright, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
         Text("V5.8 UI", color = PotatoVisuals.TextSecondary, style = MaterialTheme.typography.labelMedium)
     }
