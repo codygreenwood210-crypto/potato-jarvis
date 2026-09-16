@@ -181,10 +181,10 @@ private fun PotatoNavigationRail(
 private fun PotatoBottomBar(screen: Screen, onScreenSelected: (Screen) -> Unit) {
     var moreOpen by remember { mutableStateOf(false) }
     Surface(color = PotatoVisuals.Black.copy(alpha = 0.96f)) {
-        NavigationBar(containerColor = PotatoVisuals.Black.copy(alpha = 0.96f)) {
-            primaryDestinations.forEach { destination ->
-                val selected = destination.screen == screen || (destination.screen == null && moreDestinations.any { it.first == screen })
-                Box {
+        Box {
+            NavigationBar(containerColor = PotatoVisuals.Black.copy(alpha = 0.96f)) {
+                primaryDestinations.forEach { destination ->
+                    val selected = destination.screen == screen || (destination.screen == null && moreDestinations.any { it.first == screen })
                     NavigationBarItem(
                         selected = selected,
                         onClick = {
@@ -194,19 +194,21 @@ private fun PotatoBottomBar(screen: Screen, onScreenSelected: (Screen) -> Unit) 
                         icon = { Text(destination.symbol, fontWeight = FontWeight.Bold) },
                         label = { Text(destination.label) },
                     )
-                    if (destination.screen == null) {
-                        DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
-                            moreDestinations.forEach { (target, label) ->
-                                DropdownMenuItem(
-                                    text = { Text(label) },
-                                    onClick = {
-                                        moreOpen = false
-                                        onScreenSelected(target)
-                                    },
-                                )
-                            }
-                        }
-                    }
+                }
+            }
+            DropdownMenu(
+                expanded = moreOpen,
+                onDismissRequest = { moreOpen = false },
+                modifier = Modifier.align(Alignment.TopEnd),
+            ) {
+                moreDestinations.forEach { (target, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = {
+                            moreOpen = false
+                            onScreenSelected(target)
+                        },
+                    )
                 }
             }
         }
