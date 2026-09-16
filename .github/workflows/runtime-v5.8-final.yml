@@ -1,0 +1,308 @@
+name: POTATO V5.8 Android Runtime Proof
+
+on:
+  push:
+    branches: [potato-v5.8-final]
+    paths:
+      - '.github/workflows/runtime-v5.8-final.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  android-runtime-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact V5.8 source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+
+      - name: Prove V5.8 identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat VERSION)" = '5.8'
+          grep -F 'versionCode = 58' android/build.gradle.kts
+          grep -F 'versionName = "5.8"' android/build.gradle.kts
+          grep -F 'Color(0xFF10A37F)' android/src/main/java/com/potato/jarvis/ui/PotatoTheme.kt
+          grep -F 'Color(0xFF19C37D)' android/src/main/java/com/potato/jarvis/ui/PotatoTheme.kt
+          grep -F 'Color(0xFF090A0F)' android/src/main/java/com/potato/jarvis/ui/PotatoTheme.kt
+          echo "RUNTIME_PROOF_COMMIT=$GITHUB_SHA" | tee "$RUNNER_TEMP/runtime-commit.txt"
+
+      - name: Install backend dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -r backend/requirements.txt
+          python -m compileall -q backend
+
+      - name: Build exact debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :android:assembleDebug --no-daemon --stacktrace
+          APK="$GITHUB_WORKSPACE/android/build/outputs/apk/debug/android-debug.apk"
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          sha256sum "$APK" | tee "$RUNNER_TEMP/apk.sha256"
+
+      - name: Install Android emulator toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          test -d "$SDK_ROOT"
+          SDKMANAGER="$(find "$SDK_ROOT" -maxdepth 6 -type f -name sdkmanager 2>/dev/null | sort | tail -1)"
+          AVDMANAGER="$(find "$SDK_ROOT" -maxdepth 6 -type f -name avdmanager 2>/dev/null | sort | tail -1)"
+          ADB="$SDK_ROOT/platform-tools/adb"
+          test -x "$SDKMANAGER"
+          test -x "$AVDMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
+          EMULATOR="$SDK_ROOT/emulator/emulator"
+          test -x "$ADB"
+          test -x "$EMULATOR"
+          ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo "SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "AVDMANAGER=$AVDMANAGER" >> "$GITHUB_ENV"
+          echo "ADB=$ADB" >> "$GITHUB_ENV"
+          echo "EMULATOR=$EMULATOR" >> "$GITHUB_ENV"
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          echo 'ANDROID_RUNTIME_TOOLCHAIN=PASS'
+
+      - name: Create and boot bounded emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ANDROID_AVD_HOME="$ANDROID_AVD_HOME"
+          if [ -e /dev/kvm ]; then
+            sudo chmod 666 /dev/kvm || true
+            ACCEL_ARGS=(-accel on)
+          else
+            ACCEL_ARGS=(-accel off)
+          fi
+          echo no | "$AVDMANAGER" create avd --force --name potato-ci --package "system-images;android-35;google_apis;x86_64" --device "pixel_6"
+          "$AVDMANAGER" list avd | tee "$RUNNER_TEMP/avd-list.txt"
+          test -f "$ANDROID_AVD_HOME/potato-ci.ini"
+          "$EMULATOR" -avd potato-ci -no-window -noaudio -no-boot-anim -no-snapshot -gpu swiftshader_indirect "${ACCEL_ARGS[@]}" >"$RUNNER_TEMP/emulator.log" 2>&1 &
+          EMU_PID=$!
+          echo "$EMU_PID" > "$RUNNER_TEMP/emulator.pid"
+          "$ADB" start-server
+          DEVICE_READY=0
+          for i in $(seq 1 120); do
+            if ! kill -0 "$EMU_PID" 2>/dev/null; then
+              echo 'Emulator exited before ADB became ready' >&2
+              cat "$RUNNER_TEMP/emulator.log" >&2
+              exit 1
+            fi
+            SERIAL="$("$ADB" devices | awk '$2 == "device" && $1 ~ /^emulator-/ {print $1; exit}')"
+            if [ -n "$SERIAL" ]; then
+              DEVICE_READY=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$DEVICE_READY" != 1 ]; then
+            echo 'Timed out waiting for emulator ADB device' >&2
+            cat "$RUNNER_TEMP/emulator.log" >&2
+            exit 1
+          fi
+          echo "ANDROID_SERIAL=$SERIAL" >> "$GITHUB_ENV"
+          BOOT_READY=0
+          for i in $(seq 1 180); do
+            if ! kill -0 "$EMU_PID" 2>/dev/null; then
+              echo 'Emulator exited during Android boot' >&2
+              cat "$RUNNER_TEMP/emulator.log" >&2
+              exit 1
+            fi
+            if [ "$("$ADB" -s "$SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = '1' ]; then
+              BOOT_READY=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$BOOT_READY" != 1 ]; then
+            echo 'Timed out waiting for Android boot completion' >&2
+            cat "$RUNNER_TEMP/emulator.log" >&2
+            exit 1
+          fi
+          "$ADB" -s "$SERIAL" shell settings put global window_animation_scale 0 || true
+          "$ADB" -s "$SERIAL" shell settings put global transition_animation_scale 0 || true
+          "$ADB" -s "$SERIAL" shell settings put global animator_duration_scale 0 || true
+          "$ADB" -s "$SERIAL" shell wm dismiss-keyguard || true
+          "$ADB" -s "$SERIAL" shell getprop ro.build.version.release | tee "$RUNNER_TEMP/android-version.txt"
+          echo 'ANDROID_EMULATOR_BOOT=PASS'
+
+      - name: Start real V5.8 backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/potato-home"
+          POTATO_ENV=development \
+          POTATO_ALLOW_ANONYMOUS=true \
+          POTATO_DB="$RUNNER_TEMP/potato-v58-runtime.db" \
+          POTATO_HOME="$RUNNER_TEMP/potato-home" \
+          python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 >"$RUNNER_TEMP/potato-backend.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/potato-backend.pid"
+          READY=0
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/v1/health >"$RUNNER_TEMP/health.json"; then
+              READY=1
+              break
+            fi
+            sleep 1
+          done
+          test "$READY" = 1
+          cat "$RUNNER_TEMP/health.json"
+          grep -q '"version":"5.8"' "$RUNNER_TEMP/health.json"
+          echo 'POTATO_BACKEND_RUNTIME=PASS'
+
+      - name: Install APK and launch MainActivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/android/build/outputs/apk/debug/android-debug.apk"
+          timeout 180s "$ADB" -s "$ANDROID_SERIAL" install -r "$APK" | tee "$RUNNER_TEMP/adb-install.txt"
+          grep -q 'Success' "$RUNNER_TEMP/adb-install.txt"
+          "$ADB" -s "$ANDROID_SERIAL" shell am force-stop com.potato.jarvis || true
+          "$ADB" -s "$ANDROID_SERIAL" shell am start -W -n com.potato.jarvis/.MainActivity | tee "$RUNNER_TEMP/am-start.txt"
+          grep -q 'Status: ok' "$RUNNER_TEMP/am-start.txt"
+          sleep 4
+          "$ADB" -s "$ANDROID_SERIAL" exec-out screencap -p > "$RUNNER_TEMP/01-launched.png"
+          test -s "$RUNNER_TEMP/01-launched.png"
+          echo 'POTATO_APK_INSTALL_LAUNCH=PASS'
+
+      - name: Connect backend and navigate to POTATO chat GUI
+        shell: bash
+        run: |
+          set -euo pipefail
+          dump_ui() {
+            for attempt in $(seq 1 12); do
+              if "$ADB" -s "$ANDROID_SERIAL" shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 && \
+                 "$ADB" -s "$ANDROID_SERIAL" pull /sdcard/window.xml "$RUNNER_TEMP/window.xml" >/dev/null 2>&1 && \
+                 test -s "$RUNNER_TEMP/window.xml"; then
+                return 0
+              fi
+              sleep 1
+            done
+            return 1
+          }
+          tap_text() {
+            local needle="$1"
+            dump_ui
+            local xy
+            xy=$(python - "$needle" "$RUNNER_TEMP/window.xml" <<'PY'
+          import re, sys, xml.etree.ElementTree as ET
+          needle=sys.argv[1].lower()
+          root=ET.parse(sys.argv[2]).getroot()
+          for node in root.iter('node'):
+              hay=(node.attrib.get('text','')+' '+node.attrib.get('content-desc','')).lower()
+              if needle in hay:
+                  m=re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib.get('bounds',''))
+                  if m:
+                      a,b,c,d=map(int,m.groups())
+                      print((a+c)//2, (b+d)//2)
+                      raise SystemExit(0)
+          raise SystemExit(f'UI text not found: {needle}')
+          PY
+            )
+            "$ADB" -s "$ANDROID_SERIAL" shell input tap $xy
+          }
+
+          dump_ui
+          cp "$RUNNER_TEMP/window.xml" "$RUNNER_TEMP/01-launched.xml"
+          if grep -q 'Optional Accessibility context' "$RUNNER_TEMP/window.xml"; then
+            tap_text 'Accept'
+            sleep 2
+          fi
+          dump_ui
+          cp "$RUNNER_TEMP/window.xml" "$RUNNER_TEMP/02-setup.xml"
+          if grep -Eq 'Connect your AI assistant|Test &amp; Connect|Test & Connect' "$RUNNER_TEMP/window.xml"; then
+            tap_text 'Test & Connect'
+          fi
+
+          CHAT_READY=0
+          for i in $(seq 1 30); do
+            sleep 1
+            dump_ui || continue
+            if grep -Eq 'Talk to POTATO|New chat|ONLINE|online' "$RUNNER_TEMP/window.xml"; then
+              CHAT_READY=1
+              break
+            fi
+          done
+          cp "$RUNNER_TEMP/window.xml" "$RUNNER_TEMP/03-chat.xml"
+          if [ "$CHAT_READY" != 1 ]; then
+            "$ADB" -s "$ANDROID_SERIAL" exec-out screencap -p > "$RUNNER_TEMP/03-chat-failure.png" || true
+            "$ADB" -s "$ANDROID_SERIAL" logcat -d > "$RUNNER_TEMP/logcat.txt" || true
+            echo 'Expected POTATO chat UI not reached' >&2
+            cat "$RUNNER_TEMP/window.xml" >&2
+            exit 1
+          fi
+          "$ADB" -s "$ANDROID_SERIAL" exec-out screencap -p > "$RUNNER_TEMP/POTATO-V5.8-chat.png"
+          test -s "$RUNNER_TEMP/POTATO-V5.8-chat.png"
+          python - "$RUNNER_TEMP/POTATO-V5.8-chat.png" <<'PY'
+          from PIL import Image
+          import sys
+          with Image.open(sys.argv[1]) as im:
+              im.verify()
+          print('POTATO_RUNTIME_SCREENSHOT=PASS')
+          PY
+          "$ADB" -s "$ANDROID_SERIAL" logcat -d > "$RUNNER_TEMP/logcat.txt" || true
+          echo 'POTATO_CHAT_GUI_RUNTIME=PASS'
+
+      - name: Verify exact APK signature and hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/android/build/outputs/apk/debug/android-debug.apk"
+          APKSIGNER="$(find "$SDK_ROOT/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -1)"
+          test -n "$APKSIGNER"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apksigner.txt"
+          sha256sum "$APK" | tee "$RUNNER_TEMP/apk-final.sha256"
+          cmp "$RUNNER_TEMP/apk.sha256" "$RUNNER_TEMP/apk-final.sha256"
+          echo 'POTATO_APK_SIGNATURE_HASH=PASS'
+
+      - name: Upload exact verified V5.8 APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: POTATO-JARVIS-V5.8-RUNTIME-VERIFIED-APK
+          path: android/build/outputs/apk/debug/android-debug.apk
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Upload runtime proof
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: POTATO-JARVIS-V5.8-RUNTIME-EVIDENCE
+          path: |
+            ${{ runner.temp }}/runtime-commit.txt
+            ${{ runner.temp }}/apk*.sha256
+            ${{ runner.temp }}/avd-list.txt
+            ${{ runner.temp }}/android-version.txt
+            ${{ runner.temp }}/emulator.log
+            ${{ runner.temp }}/health.json
+            ${{ runner.temp }}/potato-backend.log
+            ${{ runner.temp }}/adb-install.txt
+            ${{ runner.temp }}/am-start.txt
+            ${{ runner.temp }}/*.xml
+            ${{ runner.temp }}/*.png
+            ${{ runner.temp }}/apksigner.txt
+            ${{ runner.temp }}/logcat.txt
+          if-no-files-found: warn
