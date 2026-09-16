@@ -1,0 +1,107 @@
+name: Teddy Game Android Vertical Slice CI
+
+on:
+  push:
+    branches: [teddy-game-v0.1-native-android]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Expand selected Teddy v1.1 resources
+        run: |
+          mkdir -p teddy-game/app/src/main/res
+          unzip -oq teddy-drawables.zip -d teddy-game/app/src/main/res
+          test -f teddy-game/app/src/main/res/drawable-nodpi/hero_idle.png
+          test -f teddy-game/app/src/main/res/drawable-nodpi/boss_pumpkin_king.png
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android API 36
+        run: yes | sdkmanager --licenses >/dev/null && sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Set up Gradle 9.6
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: Pure Java regression gate
+        run: |
+          mkdir -p teddy-game/build/selftest
+          javac -Xlint:all -d teddy-game/build/selftest \
+            teddy-game/app/src/main/java/com/potatopixelartstudios/teddygame/GameState.java \
+            teddy-game/ci/GameStateSelfTest.java
+          java -cp teddy-game/build/selftest GameStateSelfTest
+
+      - name: Unit tests, lint, APK and AAB
+        working-directory: teddy-game
+        run: gradle --no-daemon --stacktrace testDebugUnitTest lintDebug assembleDebug bundleDebug
+
+      - name: Emulator smoke and lifecycle test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            set -euxo pipefail
+            adb logcat -c
+            adb install -r teddy-game/app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -W -n com.potatopixelartstudios.teddygame/.MainActivity | tee teddy-game/emulator-start.txt
+            sleep 3
+            adb shell pidof com.potatopixelartstudios.teddygame | tee teddy-game/emulator-pid.txt
+            adb exec-out screencap -p > teddy-game/emulator-title.png
+            # Exercise title -> intro -> gameplay through touch input.
+            SIZE=$(adb shell wm size | tail -1 | tr -d '\r')
+            echo "$SIZE" | tee teddy-game/emulator-size.txt
+            adb shell input tap 960 810 || true
+            sleep 1
+            adb shell input tap 960 830 || true
+            sleep 2
+            adb exec-out screencap -p > teddy-game/emulator-gameplay.png
+            # Background/foreground lifecycle smoke.
+            adb shell input keyevent KEYCODE_HOME
+            sleep 1
+            adb shell am start -W -n com.potatopixelartstudios.teddygame/.MainActivity | tee teddy-game/emulator-resume.txt
+            sleep 2
+            adb shell pidof com.potatopixelartstudios.teddygame
+            adb logcat -d > teddy-game/emulator-logcat.txt
+            ! grep -q 'FATAL EXCEPTION' teddy-game/emulator-logcat.txt
+            test -s teddy-game/emulator-title.png
+            test -s teddy-game/emulator-gameplay.png
+
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: teddy-game-v0.1-verification
+          if-no-files-found: error
+          path: |
+            teddy-game/app/build/outputs/apk/debug/app-debug.apk
+            teddy-game/app/build/outputs/bundle/debug/app-debug.aab
+            teddy-game/app/build/reports/tests/testDebugUnitTest/
+            teddy-game/app/build/reports/lint-results-debug.html
+            teddy-game/emulator-start.txt
+            teddy-game/emulator-resume.txt
+            teddy-game/emulator-pid.txt
+            teddy-game/emulator-size.txt
+            teddy-game/emulator-title.png
+            teddy-game/emulator-gameplay.png
+            teddy-game/emulator-logcat.txt
