@@ -107,7 +107,7 @@ private fun PotatoTopBar(online: Boolean, compact: Boolean, onScreenSelected: (S
                     PotatoBrand(online = online, compact = true)
                 }
             } else {
-                Box(Modifier.align(Alignment.Center)) {
+                Box(Modifier.align(Alignment.CenterStart).padding(start = 58.dp)) {
                     PotatoBrand(online = online, compact = false)
                 }
             }
@@ -118,6 +118,7 @@ private fun PotatoTopBar(online: Boolean, compact: Boolean, onScreenSelected: (S
             ) {
                 if (!compact) {
                     PotatoTopAction("⌕") { onScreenSelected(Screen.TOOLS) }
+                    PotatoTopAction("☼") { onScreenSelected(Screen.SETTINGS) }
                     PotatoTopAction("⚙") { onScreenSelected(Screen.SETTINGS) }
                 }
             }
@@ -218,7 +219,7 @@ private fun PotatoNavigationRail(
         Text("Things", color = PotatoVisuals.TextSecondary, style = MaterialTheme.typography.labelMedium)
         Spacer(Modifier.height(12.dp))
         Text("POTATO", color = PotatoVisuals.BrandBright, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-        Text("V5.8 UI", color = PotatoVisuals.TextSecondary, style = MaterialTheme.typography.labelMedium)
+        Text("V5.8", color = PotatoVisuals.TextSecondary, style = MaterialTheme.typography.labelMedium)
     }
 }
 

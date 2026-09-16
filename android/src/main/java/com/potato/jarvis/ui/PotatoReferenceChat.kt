@@ -61,7 +61,7 @@ fun PotatoChatLanding(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (wide) {
-                Box(Modifier.fillMaxWidth().weight(0.95f)) {
+                Box(Modifier.fillMaxWidth().weight(0.82f)) {
                     PotatoHeroScenery(Modifier.fillMaxSize())
                     PotatoWelcomeHero(
                         online = online,
@@ -69,7 +69,7 @@ fun PotatoChatLanding(
                     )
                 }
                 Row(
-                    Modifier.fillMaxWidth().weight(0.66f),
+                    Modifier.fillMaxWidth().weight(0.76f),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     PotatoTaskPreview(tasks = tasks, modifier = Modifier.weight(1.52f).fillMaxHeight())
@@ -277,13 +277,19 @@ private fun PotatoWelcomeHero(online: Boolean, modifier: Modifier = Modifier) {
 
 @Composable
 private fun PotatoTaskPreview(tasks: List<TaskStatus>, modifier: Modifier = Modifier) {
-    PotatoPanel(modifier = modifier, padding = 20.dp) {
+    PotatoPanel(modifier = modifier, padding = 17.dp) {
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("▣", color = PotatoVisuals.BrandBright, style = MaterialTheme.typography.headlineMedium)
                 Spacer(Modifier.width(10.dp))
                 Text("Your tasks for today", color = PotatoVisuals.TextPrimary, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
+                Text(
+                    todayLabel(),
+                    color = PotatoVisuals.TextSecondary,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Spacer(Modifier.width(12.dp))
                 Surface(shape = CircleShape, color = PotatoVisuals.Brand.copy(alpha = 0.16f)) {
                     Text(
                         "${tasks.size} tasks",
@@ -293,7 +299,7 @@ private fun PotatoTaskPreview(tasks: List<TaskStatus>, modifier: Modifier = Modi
                     )
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(7.dp))
             if (tasks.isEmpty()) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                     Text("A clear day ✨", style = MaterialTheme.typography.titleMedium, color = PotatoVisuals.TextPrimary)
@@ -310,7 +316,7 @@ private fun PotatoTaskPreview(tasks: List<TaskStatus>, modifier: Modifier = Modi
                 color = PotatoVisuals.BrandBright,
                 fontStyle = FontStyle.Italic,
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 10.dp),
+                modifier = Modifier.padding(top = 4.dp),
             )
         }
     }
@@ -320,7 +326,7 @@ private fun PotatoTaskPreview(tasks: List<TaskStatus>, modifier: Modifier = Modi
 private fun PotatoTaskRow(task: TaskStatus) {
     val done = task.status == "completed"
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -360,13 +366,17 @@ private fun taskTimeLabel(task: TaskStatus): String {
     val match = Regex("""T(\d{2}):(\d{2})""").find(due) ?: return "Today"
     val hour24 = match.groupValues[1].toIntOrNull() ?: return "Today"
     val minute = match.groupValues[2]
-    val suffix = if (hour24 < 12) "AM" else "PM"
+    if (hour24 >= 17) return "This evening"
+    if (hour24 >= 12) return "Today"
     val hour12 = when (val value = hour24 % 12) {
         0 -> 12
         else -> value
     }
-    return "$hour12:$minute $suffix"
+    return "$hour12:$minute AM"
 }
+
+private fun todayLabel(): String =
+    java.text.SimpleDateFormat("EEE, MMM d", java.util.Locale.getDefault()).format(java.util.Date())
 
 @Composable
 private fun PotatoScenicCard(modifier: Modifier = Modifier) {
@@ -489,26 +499,47 @@ fun PotatoQuickActions(
     onVoice: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        PotatoQuickAction("◎", "Search web", "Find anything", onSearchWeb)
-        PotatoQuickAction("▣", "Take photo", "See the world", onTakePhoto)
-        PotatoQuickAction("⌗", "Scan text", "Turn text into ideas", onScanText)
-        PotatoQuickAction("●", "Voice note", "Speak your mind", onVoice)
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val wide = maxWidth >= 760.dp
+        if (wide) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                PotatoQuickAction("◎", "Search web", "Find anything", onSearchWeb, Modifier.weight(1f))
+                PotatoQuickAction("▣", "Take photo", "See the world", onTakePhoto, Modifier.weight(1f))
+                PotatoQuickAction("⌗", "Scan text", "Turn text into ideas", onScanText, Modifier.weight(1f))
+                PotatoQuickAction("●", "Voice note", "Speak your mind", onVoice, Modifier.weight(1f))
+            }
+        } else {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                PotatoQuickAction("◎", "Search web", "Find anything", onSearchWeb, Modifier.widthIn(min = 190.dp))
+                PotatoQuickAction("▣", "Take photo", "See the world", onTakePhoto, Modifier.widthIn(min = 190.dp))
+                PotatoQuickAction("⌗", "Scan text", "Turn text into ideas", onScanText, Modifier.widthIn(min = 190.dp))
+                PotatoQuickAction("●", "Voice note", "Speak your mind", onVoice, Modifier.widthIn(min = 190.dp))
+            }
+        }
     }
 }
 
 @Composable
-private fun PotatoQuickAction(symbol: String, title: String, subtitle: String, onClick: () -> Unit) {
+private fun PotatoQuickAction(
+    symbol: String,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     OutlinedButton(
         onClick = onClick,
         shape = RoundedCornerShape(18.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, PotatoVisuals.Border),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = PotatoVisuals.Surface.copy(alpha = 0.9f)),
-        modifier = Modifier.widthIn(min = 190.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 15.dp, vertical = 13.dp),
+        modifier = modifier.height(76.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 11.dp),
     ) {
         Box(
             Modifier.size(42.dp).background(PotatoVisuals.Brand.copy(alpha = 0.22f), CircleShape),
@@ -608,8 +639,8 @@ fun PotatoComposer(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = PotatoVisuals.BrandBright,
                     contentColor = PotatoVisuals.Black,
-                    disabledContainerColor = PotatoVisuals.Brand.copy(alpha = 0.30f),
-                    disabledContentColor = PotatoVisuals.BrandSoft.copy(alpha = 0.72f),
+                    disabledContainerColor = PotatoVisuals.BrandBright.copy(alpha = 0.88f),
+                    disabledContentColor = PotatoVisuals.Black.copy(alpha = 0.66f),
                 ),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
                 modifier = Modifier.size(46.dp),
