@@ -122,12 +122,23 @@ jobs:
       - name: Upload installable build immediately
         uses: actions/upload-artifact@v4
         with:
-          name: teddy-game-v0.1-installable
+          name: teddy-game-v0.2-installable
           if-no-files-found: error
           path: |
             teddy-game/app/build/outputs/apk/debug/app-debug.apk
             teddy-game/app/build/outputs/bundle/debug/app-debug.aab
             teddy-game/resource-source.txt
+
+      - name: Enable KVM acceleration for Android emulator
+        run: |
+          set -euxo pipefail
+          if [ -e /dev/kvm ]; then
+            ls -l /dev/kvm
+            sudo chmod 666 /dev/kvm
+            ls -l /dev/kvm
+          else
+            echo "::warning::/dev/kvm is unavailable; emulator runner will fall back to software emulation"
+          fi
 
       - name: Emulator smoke and lifecycle test
         uses: reactivecircus/android-emulator-runner@v2
@@ -136,6 +147,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
+          emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
             set -euxo pipefail
@@ -147,9 +159,9 @@ jobs:
             adb exec-out screencap -p > teddy-game/emulator-title.png
             SIZE=$(adb shell wm size | tail -1 | tr -d '\r')
             echo "$SIZE" | tee teddy-game/emulator-size.txt
-            adb shell input tap 960 810 || true
+            adb shell input tap 960 810
             sleep 1
-            adb shell input tap 960 830 || true
+            adb shell input tap 960 830
             sleep 2
             adb exec-out screencap -p > teddy-game/emulator-gameplay.png
             adb shell input keyevent KEYCODE_HOME
@@ -166,7 +178,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: teddy-game-v0.1-verification
+          name: teddy-game-v0.2-verification
           if-no-files-found: warn
           path: |
             teddy-game/app/build/outputs/apk/debug/app-debug.apk
