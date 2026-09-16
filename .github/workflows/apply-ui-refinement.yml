@@ -1,0 +1,52 @@
+name: Apply POTATO UI Refinement
+
+on:
+  push:
+    branches: [potato-v5.8-ui-reference]
+    paths:
+      - 'scripts/refine_ui_reference.py'
+      - '.github/workflows/apply-ui-refinement.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: potato-ui-refine-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  refine-ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout UI branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: potato-v5.8-ui-reference
+          fetch-depth: 0
+
+      - name: Apply deterministic visual refinement
+        run: python scripts/refine_ui_reference.py
+
+      - name: Verify intended source changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'fun pine(x: Float' android/src/main/java/com/potato/jarvis/ui/PotatoReferenceChat.kt
+          grep -F 'Small' android/src/main/java/com/potato/jarvis/ui/PotatoShell.kt
+          grep -F 'Screen.TOOLS' android/src/main/java/com/potato/jarvis/ui/PotatoShell.kt
+
+      - name: Commit visual refinements
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- android/src/main/java/com/potato/jarvis/ui/PotatoReferenceChat.kt android/src/main/java/com/potato/jarvis/ui/PotatoShell.kt; then
+            echo 'Visual refinements already applied'
+            exit 0
+          fi
+          git config user.name 'POTATO UI Team'
+          git config user.email 'actions@users.noreply.github.com'
+          git add android/src/main/java/com/potato/jarvis/ui/PotatoReferenceChat.kt android/src/main/java/com/potato/jarvis/ui/PotatoShell.kt
+          git commit -m 'ui: refine reference fidelity after runtime review'
+          git push origin HEAD:potato-v5.8-ui-reference
