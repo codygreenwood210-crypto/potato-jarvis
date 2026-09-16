@@ -139,7 +139,7 @@ private fun PotatoTaskPreview(tasks: List<TaskStatus>, modifier: Modifier = Modi
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("▣", color = PotatoVisuals.BrandBright, style = MaterialTheme.typography.headlineMedium)
                 Spacer(Modifier.width(10.dp))
-                Text("Your tasks for today", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Your tasks for today", color = PotatoVisuals.TextPrimary, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
                 Surface(shape = CircleShape, color = PotatoVisuals.Brand.copy(alpha = 0.16f)) {
                     Text(
@@ -211,33 +211,84 @@ private fun PotatoScenicCard(modifier: Modifier = Modifier) {
     PotatoPanel(modifier = modifier, padding = 0.dp) {
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0B2A27), Color(0xFF071413), PotatoVisuals.Black)))) {
             Canvas(Modifier.fillMaxSize()) {
-                val moon = Offset(size.width * 0.78f, size.height * 0.22f)
-                drawCircle(Color(0xFFDAE8A7), radius = size.minDimension * 0.11f, center = moon)
-                val far = Path().apply {
-                    moveTo(0f, size.height * 0.62f)
-                    lineTo(size.width * 0.22f, size.height * 0.30f)
-                    lineTo(size.width * 0.34f, size.height * 0.52f)
-                    lineTo(size.width * 0.52f, size.height * 0.20f)
-                    lineTo(size.width * 0.69f, size.height * 0.55f)
-                    lineTo(size.width, size.height * 0.36f)
-                    lineTo(size.width, size.height)
-                    lineTo(0f, size.height)
+                val w = size.width
+                val h = size.height
+                val moon = Offset(w * 0.79f, h * 0.20f)
+                drawCircle(Color(0x183DE8B3), radius = size.minDimension * 0.22f, center = moon)
+                drawCircle(Color(0x33BCE7C7), radius = size.minDimension * 0.15f, center = moon)
+                drawCircle(Color(0xFFE1EDAE), radius = size.minDimension * 0.105f, center = moon)
+
+                listOf(
+                    Offset(w * 0.10f, h * 0.15f), Offset(w * 0.19f, h * 0.10f), Offset(w * 0.31f, h * 0.19f),
+                    Offset(w * 0.46f, h * 0.11f), Offset(w * 0.60f, h * 0.16f), Offset(w * 0.91f, h * 0.10f),
+                ).forEachIndexed { index, point ->
+                    drawCircle(if (index % 2 == 0) Color(0x99D5F7E9) else Color(0x66FFFFFF), radius = 1.6f + index % 2, center = point)
+                }
+
+                fun mountain(points: List<Offset>, color: Color) {
+                    val path = Path().apply {
+                        moveTo(0f, h)
+                        lineTo(0f, points.first().y)
+                        points.forEach { lineTo(it.x, it.y) }
+                        lineTo(w, points.last().y)
+                        lineTo(w, h)
+                        close()
+                    }
+                    drawPath(path, color)
+                }
+
+                mountain(
+                    listOf(
+                        Offset(w * 0.12f, h * 0.53f), Offset(w * 0.26f, h * 0.24f), Offset(w * 0.35f, h * 0.48f),
+                        Offset(w * 0.53f, h * 0.19f), Offset(w * 0.68f, h * 0.49f), Offset(w * 0.86f, h * 0.31f), Offset(w, h * 0.46f),
+                    ),
+                    Color(0xFF17433A),
+                )
+                mountain(
+                    listOf(
+                        Offset(w * 0.07f, h * 0.66f), Offset(w * 0.23f, h * 0.40f), Offset(w * 0.38f, h * 0.61f),
+                        Offset(w * 0.58f, h * 0.35f), Offset(w * 0.74f, h * 0.63f), Offset(w * 0.91f, h * 0.48f), Offset(w, h * 0.59f),
+                    ),
+                    Color(0xFF102F2A),
+                )
+                mountain(
+                    listOf(
+                        Offset(w * 0.05f, h * 0.77f), Offset(w * 0.19f, h * 0.58f), Offset(w * 0.33f, h * 0.73f),
+                        Offset(w * 0.50f, h * 0.55f), Offset(w * 0.65f, h * 0.75f), Offset(w * 0.82f, h * 0.61f), Offset(w, h * 0.71f),
+                    ),
+                    Color(0xFF09201D),
+                )
+
+                val lake = Path().apply {
+                    moveTo(w * 0.12f, h * 0.73f)
+                    quadraticBezierTo(w * 0.48f, h * 0.64f, w * 0.87f, h * 0.73f)
+                    lineTo(w * 0.74f, h * 0.92f)
+                    quadraticBezierTo(w * 0.46f, h * 0.84f, w * 0.20f, h * 0.91f)
                     close()
                 }
-                drawPath(far, Color(0xFF174038))
-                val near = Path().apply {
-                    moveTo(0f, size.height * 0.72f)
-                    lineTo(size.width * 0.28f, size.height * 0.48f)
-                    lineTo(size.width * 0.42f, size.height * 0.68f)
-                    lineTo(size.width * 0.60f, size.height * 0.41f)
-                    lineTo(size.width * 0.80f, size.height * 0.70f)
-                    lineTo(size.width, size.height * 0.53f)
-                    lineTo(size.width, size.height)
-                    lineTo(0f, size.height)
-                    close()
+                drawPath(lake, Brush.verticalGradient(listOf(Color(0x8846B79B), Color(0x2219C37D)), startY = h * 0.65f, endY = h))
+                drawLine(Color(0x5572E6C4), Offset(w * 0.38f, h * 0.76f), Offset(w * 0.67f, h * 0.76f), strokeWidth = 2f)
+                drawLine(Color(0x334AC5A4), Offset(w * 0.29f, h * 0.82f), Offset(w * 0.71f, h * 0.82f), strokeWidth = 1.4f)
+
+                fun pine(x: Float, base: Float, height: Float, color: Color) {
+                    drawRect(color, topLeft = Offset(x - 1.5f, base - height * 0.20f), size = androidx.compose.ui.geometry.Size(3f, height * 0.20f))
+                    val tree = Path().apply {
+                        moveTo(x, base - height)
+                        lineTo(x - height * 0.24f, base - height * 0.48f)
+                        lineTo(x - height * 0.10f, base - height * 0.50f)
+                        lineTo(x - height * 0.31f, base - height * 0.18f)
+                        lineTo(x + height * 0.31f, base - height * 0.18f)
+                        lineTo(x + height * 0.10f, base - height * 0.50f)
+                        lineTo(x + height * 0.24f, base - height * 0.48f)
+                        close()
+                    }
+                    drawPath(tree, color)
                 }
-                drawPath(near, Color(0xFF0B211F))
-                drawOval(Color(0x442AC79F), topLeft = Offset(size.width * 0.08f, size.height * 0.72f), size = androidx.compose.ui.geometry.Size(size.width * 0.82f, size.height * 0.15f))
+                for (i in 0..11) {
+                    val x = w * (0.025f + i * 0.087f)
+                    val height = h * (0.13f + (i % 4) * 0.018f)
+                    pine(x, h * 0.91f, height, if (i % 2 == 0) Color(0xFF061513) else Color(0xFF081B18))
+                }
             }
             Column(Modifier.align(Alignment.TopStart).padding(22.dp)) {
                 Text("Good ideas", color = PotatoVisuals.TextPrimary, style = MaterialTheme.typography.headlineSmall, fontStyle = FontStyle.Italic)
@@ -297,7 +348,12 @@ private fun PotatoQuickAction(symbol: String, title: String, subtitle: String, o
         modifier = Modifier.widthIn(min = 190.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 15.dp, vertical = 13.dp),
     ) {
-        Text(symbol, color = PotatoVisuals.BrandBright, style = MaterialTheme.typography.titleLarge)
+        Box(
+            Modifier.size(42.dp).background(PotatoVisuals.Brand.copy(alpha = 0.22f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(symbol, color = PotatoVisuals.BrandBright, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        }
         Spacer(Modifier.width(11.dp))
         Column(horizontalAlignment = Alignment.Start) {
             Text(title, color = PotatoVisuals.TextPrimary, style = MaterialTheme.typography.labelLarge)
@@ -382,12 +438,17 @@ fun PotatoComposer(
                 border = androidx.compose.foundation.BorderStroke(1.dp, if (voiceActive) PotatoVisuals.BrandBright else PotatoVisuals.Border),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
                 modifier = Modifier.size(46.dp),
-            ) { Text(if (voiceActive) "■" else "●", color = if (voiceActive) PotatoVisuals.BrandBright else PotatoVisuals.TextPrimary) }
+            ) { Text(if (voiceActive) "■" else "🎙", color = if (voiceActive) PotatoVisuals.BrandBright else PotatoVisuals.TextPrimary) }
             Button(
                 enabled = value.isNotBlank() && enabled,
                 onClick = onSend,
                 shape = CircleShape,
-                colors = ButtonDefaults.buttonColors(containerColor = PotatoVisuals.BrandBright, contentColor = PotatoVisuals.Black),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PotatoVisuals.BrandBright,
+                    contentColor = PotatoVisuals.Black,
+                    disabledContainerColor = PotatoVisuals.Brand.copy(alpha = 0.30f),
+                    disabledContentColor = PotatoVisuals.BrandSoft.copy(alpha = 0.72f),
+                ),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
                 modifier = Modifier.size(46.dp),
             ) { Text("➤", fontWeight = FontWeight.Black) }

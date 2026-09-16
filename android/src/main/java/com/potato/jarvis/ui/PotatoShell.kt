@@ -1,6 +1,7 @@
 package com.potato.jarvis.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -76,13 +77,13 @@ fun PotatoAppShell(
                     modifier = Modifier.width(132.dp).fillMaxHeight(),
                 )
                 Column(Modifier.fillMaxSize()) {
-                    PotatoTopBar(online = online, compact = false)
+                    PotatoTopBar(online = online, compact = false, onScreenSelected = onScreenSelected)
                     Box(Modifier.fillMaxSize()) { content() }
                 }
             }
         } else {
             Column(Modifier.fillMaxSize()) {
-                PotatoTopBar(online = online, compact = true)
+                PotatoTopBar(online = online, compact = true, onScreenSelected = onScreenSelected)
                 Box(Modifier.weight(1f).fillMaxWidth()) { content() }
                 PotatoBottomBar(screen = screen, onScreenSelected = onScreenSelected)
             }
@@ -91,7 +92,7 @@ fun PotatoAppShell(
 }
 
 @Composable
-private fun PotatoTopBar(online: Boolean, compact: Boolean) {
+private fun PotatoTopBar(online: Boolean, compact: Boolean, onScreenSelected: (Screen) -> Unit) {
     Surface(color = PotatoVisuals.Black.copy(alpha = 0.72f), tonalElevation = 0.dp) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = if (compact) 14.dp else 24.dp, vertical = 12.dp),
@@ -104,6 +105,28 @@ private fun PotatoTopBar(online: Boolean, compact: Boolean) {
                     "Good ideas happen here  ·  small steps, bigger things",
                     color = PotatoVisuals.TextSecondary,
                     style = MaterialTheme.typography.labelMedium,
+                )
+                Spacer(Modifier.width(14.dp))
+                Text(
+                    "⌕",
+                    color = PotatoVisuals.TextPrimary,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(PotatoVisuals.SurfaceRaised)
+                        .clickable { onScreenSelected(Screen.TOOLS) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    "⚙",
+                    color = PotatoVisuals.TextPrimary,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(PotatoVisuals.SurfaceRaised)
+                        .clickable { onScreenSelected(Screen.SETTINGS) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                 )
             }
         }
@@ -121,8 +144,7 @@ private fun PotatoNavigationRail(
         modifier = modifier.background(PotatoVisuals.Black.copy(alpha = 0.92f)).padding(vertical = 18.dp),
         containerColor = PotatoVisuals.Black.copy(alpha = 0.92f),
         header = {
-            PotatoMascot(Modifier.width(52.dp).height(58.dp))
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(8.dp))
         },
     ) {
         primaryDestinations.forEach { destination ->
@@ -172,6 +194,12 @@ private fun PotatoNavigationRail(
             }
         }
         Spacer(Modifier.weight(1f))
+        Text("🌱", color = PotatoVisuals.BrandBright, style = MaterialTheme.typography.titleMedium)
+        Text("Small", color = PotatoVisuals.TextSecondary, style = MaterialTheme.typography.labelMedium)
+        Text("Steps", color = PotatoVisuals.TextSecondary, style = MaterialTheme.typography.labelMedium)
+        Text("Bigger", color = PotatoVisuals.TextSecondary, style = MaterialTheme.typography.labelMedium)
+        Text("Things", color = PotatoVisuals.TextSecondary, style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(14.dp))
         Text("POTATO", color = PotatoVisuals.BrandBright, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
         Text("V5.8 UI", color = PotatoVisuals.TextSecondary, style = MaterialTheme.typography.labelMedium)
     }
