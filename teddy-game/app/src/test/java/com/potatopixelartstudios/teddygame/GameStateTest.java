@@ -44,14 +44,10 @@ public class GameStateTest {
         s.bossHealth = 50;
         s.heartland = 70;
         s.nightmare = 70;
-
         assertTrue(s.purifyBoss());
         assertTrue(s.bossPurified);
         assertEquals(1, s.heartShards);
         assertEquals(GameState.QuestStage.RETURN_HOME, s.questStage);
-
-        // Purification consumes 35 from each pool, then the 120 XP boss reward
-        // levels Teddy from 1 to 2 and grants the normal +20 magic level reward.
         assertEquals(2, s.level);
         assertEquals(20, s.xp);
         assertEquals(55, s.heartland);
@@ -87,13 +83,50 @@ public class GameStateTest {
         assertEquals(3, s.nightmare);
     }
 
-    @Test public void questTransitionCannotSkipLanternEvent() {
+    @Test public void lanternDisasterCannotBeSkippedAndForestRequiresRescue() {
         GameState s = new GameState();
         s.playerX = 1800f;
         s.updateStoryProgress();
         assertTrue(s.lanternBroken);
         assertEquals(GameState.QuestStage.LANTERN_BROKEN, s.questStage);
         s.updateStoryProgress();
+        assertEquals(GameState.QuestStage.LANTERN_BROKEN, s.questStage);
+        assertTrue(s.rescueVillager());
+        s.updateStoryProgress();
         assertEquals(GameState.QuestStage.FOREST, s.questStage);
+    }
+
+    @Test public void dodgeHasCooldownAndInvulnerability() {
+        GameState s = new GameState();
+        assertTrue(s.tryDodge(1000));
+        assertFalse(s.tryDodge(1200));
+        int hp = s.health;
+        s.damagePlayer(50, 1100);
+        assertEquals(hp, s.health);
+        s.damagePlayer(20, 1400);
+        assertEquals(hp - 20, s.health);
+        assertTrue(s.tryDodge(1700));
+    }
+
+    @Test public void mummyHealerCostsCoinsOnlyWhenHealing() {
+        GameState s = new GameState();
+        int initialCoins = s.coins;
+        assertFalse(s.visitMummyHealer());
+        assertEquals(initialCoins, s.coins);
+        s.health = 20;
+        assertTrue(s.visitMummyHealer());
+        assertEquals(GameState.MAX_HEALTH, s.health);
+        assertEquals(initialCoins - 5, s.coins);
+    }
+
+    @Test public void secretRewardIsOneTime() {
+        GameState s = new GameState();
+        int coins = s.coins;
+        int potions = s.potions;
+        assertTrue(s.discoverSecret());
+        assertEquals(coins + 12, s.coins);
+        assertEquals(potions + 1, s.potions);
+        assertFalse(s.discoverSecret());
+        assertEquals(coins + 12, s.coins);
     }
 }
