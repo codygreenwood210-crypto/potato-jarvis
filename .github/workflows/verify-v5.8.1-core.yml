@@ -1,0 +1,252 @@
+name: Verify POTATO V5.8.1 Core Sideload
+
+on:
+  push:
+    branches: [potato-v5.8.1-core]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: potato-v5.8.1-core-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-core-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - name: Checkout core source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+
+      - name: Verify core manifest is minimum-permission
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          p=Path('android/src/main/AndroidManifest.xml')
+          root=ET.parse(p).getroot()
+          ns='{http://schemas.android.com/apk/res/android}'
+          perms=[x.attrib.get(ns+'name') for x in root.findall('uses-permission')]
+          expected={'android.permission.INTERNET','android.permission.ACCESS_NETWORK_STATE'}
+          if set(perms) != expected:
+              raise SystemExit(f'Unexpected core permissions: {perms}')
+          services=root.find('application').findall('service')
+          if services:
+              raise SystemExit('Core build must not declare Android services: '+str([s.attrib for s in services]))
+          print('CORE_SOURCE_MANIFEST=PASS permissions='+','.join(sorted(perms)))
+          PY
+          python -m compileall -q backend scripts
+          python scripts/scan_secrets.py .
+          ./scripts/verify_gradle_wrapper.sh
+
+      - name: Install and audit backend dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install -r backend/requirements.txt pip-audit==2.10.1
+          pip-audit -r backend/requirements.txt
+
+      - name: Backend regression tests
+        env:
+          POTATO_ENV: test
+        run: python -m pytest -q backend/tests
+
+      - name: Android unit tests
+        run: ./gradlew :android:testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Require actual Android tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          reports=list(Path('android/build/test-results/testDebugUnitTest').glob('TEST-*.xml'))
+          if not reports:
+              raise SystemExit('No Android JUnit reports')
+          tests=failures=errors=0
+          for p in reports:
+              r=ET.parse(p).getroot()
+              tests += int(r.attrib.get('tests','0'))
+              failures += int(r.attrib.get('failures','0'))
+              errors += int(r.attrib.get('errors','0'))
+          if tests <= 0 or failures or errors:
+              raise SystemExit(f'Android tests not clean: {tests=} {failures=} {errors=}')
+          print(f'ANDROID_TESTS_EXECUTED={tests}')
+          PY
+
+      - name: Build and lint core APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew :android:assembleDebug :android:lint --no-daemon --max-workers=1 -Dorg.gradle.jvmargs='-Xmx3g -Dfile.encoding=UTF-8' --stacktrace
+          APK=android/build/outputs/apk/debug/android-debug.apk
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          test -s android/build/reports/lint-results-debug.xml
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root=ET.parse('android/build/reports/lint-results-debug.xml').getroot()
+          errors=[x for x in root.findall('issue') if x.attrib.get('severity') in {'Error','Fatal'}]
+          if errors:
+              raise SystemExit(f'Android lint has {len(errors)} blocking issue(s)')
+          print('ANDROID_LINT_ERRORS=0')
+          PY
+
+      - name: Verify packaged APK permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          AAPT2="$(find "$SDK_ROOT/build-tools" -type f -name aapt2 2>/dev/null | sort -V | tail -1)"
+          APKSIGNER="$(find "$SDK_ROOT/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -1)"
+          test -x "$AAPT2"
+          test -x "$APKSIGNER"
+          APK="$GITHUB_WORKSPACE/android/build/outputs/apk/debug/android-debug.apk"
+          "$AAPT2" dump permissions "$APK" | tee "$RUNNER_TEMP/apk-permissions.txt"
+          for forbidden in RECORD_AUDIO POST_NOTIFICATIONS USE_BIOMETRIC ACCESS_COARSE_LOCATION ACCESS_FINE_LOCATION READ_CALENDAR READ_CONTACTS BIND_ACCESSIBILITY_SERVICE; do
+            if grep -q "$forbidden" "$RUNNER_TEMP/apk-permissions.txt"; then
+              echo "Forbidden permission present: $forbidden" >&2
+              exit 1
+            fi
+          done
+          grep -q 'android.permission.INTERNET' "$RUNNER_TEMP/apk-permissions.txt"
+          grep -q 'android.permission.ACCESS_NETWORK_STATE' "$RUNNER_TEMP/apk-permissions.txt"
+          echo "SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "APKSIGNER=$APKSIGNER" >> "$GITHUB_ENV"
+          echo 'CORE_PACKAGED_PERMISSIONS=PASS'
+
+      - name: Locate Android SDK tools and install emulator image
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$SDK_ROOT" -maxdepth 6 -type f -name sdkmanager 2>/dev/null | sort | tail -1)"
+          AVDMANAGER="$(find "$SDK_ROOT" -maxdepth 6 -type f -name avdmanager 2>/dev/null | sort | tail -1)"
+          test -x "$SDKMANAGER"
+          test -x "$AVDMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
+          ADB="$SDK_ROOT/platform-tools/adb"
+          EMULATOR="$SDK_ROOT/emulator/emulator"
+          test -x "$ADB"
+          test -x "$EMULATOR"
+          echo "AVDMANAGER=$AVDMANAGER" >> "$GITHUB_ENV"
+          echo "ADB=$ADB" >> "$GITHUB_ENV"
+          echo "EMULATOR=$EMULATOR" >> "$GITHUB_ENV"
+
+      - name: Start local POTATO backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/potato-home"
+          POTATO_ENV=development POTATO_ALLOW_ANONYMOUS=true POTATO_DB="$RUNNER_TEMP/potato-core.db" POTATO_HOME="$RUNNER_TEMP/potato-home" \
+            python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 >"$RUNNER_TEMP/potato-backend.log" 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/v1/health >"$RUNNER_TEMP/health.json"; then break; fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/health.json"
+          grep -q '"version":"5.8"' "$RUNNER_TEMP/health.json"
+
+      - name: Boot emulator install launch and verify chat GUI
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm || true; fi
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | "$AVDMANAGER" create avd --force --name potato-core --package "system-images;android-35;google_apis;x86_64" --device "pixel_6"
+          "$EMULATOR" -avd potato-core -no-window -noaudio -no-boot-anim -no-snapshot -gpu swiftshader_indirect >"$RUNNER_TEMP/emulator.log" 2>&1 &
+          EMULATOR_PID=$!
+          for i in $(seq 1 180); do
+            if ! kill -0 "$EMULATOR_PID" 2>/dev/null; then cat "$RUNNER_TEMP/emulator.log"; exit 1; fi
+            if "$ADB" devices | grep -q '^emulator-.*device$'; then break; fi
+            sleep 2
+          done
+          "$ADB" devices | grep -q '^emulator-.*device$'
+          for i in $(seq 1 180); do
+            if [ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then break; fi
+            sleep 2
+          done
+          test "$("$ADB" shell getprop sys.boot_completed | tr -d '\r')" = "1"
+          APK="$GITHUB_WORKSPACE/android/build/outputs/apk/debug/android-debug.apk"
+          "$ADB" install -r "$APK" | tee "$RUNNER_TEMP/adb-install.txt"
+          grep -q 'Success' "$RUNNER_TEMP/adb-install.txt"
+          "$ADB" shell am start -W -n com.potato.jarvis/.MainActivity | tee "$RUNNER_TEMP/am-start.txt"
+          grep -q 'Status: ok' "$RUNNER_TEMP/am-start.txt"
+          sleep 3
+          "$ADB" shell uiautomator dump /sdcard/window.xml >/dev/null
+          "$ADB" pull /sdcard/window.xml "$RUNNER_TEMP/window.xml" >/dev/null
+          grep -Eq 'Connect your AI assistant|Test &amp; Connect|Test & Connect' "$RUNNER_TEMP/window.xml"
+          python - "$RUNNER_TEMP/window.xml" <<'PY'
+          import re, subprocess, sys, xml.etree.ElementTree as ET
+          root=ET.parse(sys.argv[1]).getroot()
+          for node in root.iter('node'):
+              hay=(node.attrib.get('text','')+' '+node.attrib.get('content-desc','')).lower()
+              if 'test & connect' in hay:
+                  m=re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib.get('bounds',''))
+                  if not m: continue
+                  a,b,c,d=map(int,m.groups())
+                  subprocess.run(["adb","shell","input","tap",str((a+c)//2),str((b+d)//2)],check=True)
+                  break
+          else:
+              raise SystemExit('Test & Connect not found')
+          PY
+          sleep 5
+          "$ADB" shell uiautomator dump /sdcard/window2.xml >/dev/null
+          "$ADB" pull /sdcard/window2.xml "$RUNNER_TEMP/window2.xml" >/dev/null
+          grep -Eq 'Talk to POTATO|New chat|ONLINE|online' "$RUNNER_TEMP/window2.xml"
+          "$ADB" exec-out screencap -p > "$RUNNER_TEMP/POTATO-V5.8.1-core.png"
+          test -s "$RUNNER_TEMP/POTATO-V5.8.1-core.png"
+          echo 'CORE_EMULATOR_SMOKE=PASS' >> "$GITHUB_ENV"
+
+      - name: Verify APK signature and hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${CORE_EMULATOR_SMOKE:-}" = PASS
+          APK=android/build/outputs/apk/debug/android-debug.apk
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apksigner.txt"
+          sha256sum "$APK" | tee "$RUNNER_TEMP/apk.sha256"
+
+      - name: Upload core APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: POTATO-V5.8.1-CORE-APK
+          path: android/build/outputs/apk/debug/android-debug.apk
+          if-no-files-found: error
+
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: POTATO-V5.8.1-CORE-EVIDENCE
+          path: |
+            ${{ runner.temp }}/apk-permissions.txt
+            ${{ runner.temp }}/health.json
+            ${{ runner.temp }}/adb-install.txt
+            ${{ runner.temp }}/am-start.txt
+            ${{ runner.temp }}/window*.xml
+            ${{ runner.temp }}/POTATO-V5.8.1-core.png
+            ${{ runner.temp }}/apksigner.txt
+            ${{ runner.temp }}/apk.sha256
+            android/build/reports/lint-results-debug.xml
+            android/build/test-results/
+          if-no-files-found: warn
