@@ -7,16 +7,19 @@ This file is the first entry point for any new ChatGPT conversation or engineer 
 1. Open repository `codygreenwood210-crypto/potato-jarvis`.
 2. Use branch `potato-v5.8-final` unless the user explicitly promotes a newer branch/version.
 3. Read `docs/POTATO_V5.8_CANONICAL_HANDOFF_AND_REBUILD.md` **in full** before changing code.
-4. Then read `README.md`, `HOW_TO_BUILD.md`, `CHANGES_V5.8.md`, `RELEASE_REPORT.md`, current workflows, and recent commits.
-5. Check the current branch head and distinguish documentation-only commits from the verified functional code baseline.
-6. Run or inspect the relevant tests/build/runtime evidence before claiming completion.
+4. Read `docs/ARCHIVIST/README.md` **in full**.
+5. Read `docs/ARCHIVIST/CURRENT_STATE.md` and the latest entry in `docs/ARCHIVIST/HANDOFF_LEDGER.md`.
+6. Then read `README.md`, `HOW_TO_BUILD.md`, `CHANGES_V5.8.md`, `RELEASE_REPORT.md`, relevant current workflows, recent commits, and any Archivist records referenced by the latest handoff.
+7. Check the current branch head and distinguish documentation/governance-only commits from the verified functional code baseline.
+8. Run or inspect the relevant tests/build/runtime evidence before claiming completion.
+9. Before handing substantive work to another chat, follow the Archivist closeout sequence and run `python scripts/verify_archivist_records.py`.
 
 ## Current verified functional baseline
 
 - Version: POTATO Jarvis V5.8
 - Android package: `com.potato.jarvis`
 - Verified functional code baseline: `6cc4f2076d46bf11e9bd3c7d0cbdabff4d9d232a`
-- The branch may contain newer documentation/handoff commits after that baseline.
+- The branch may contain newer documentation/governance/handoff commits after that baseline.
 - Android: Kotlin + Jetpack Compose / Material 3
 - Backend: FastAPI + Uvicorn + SQLite + httpx
 - OpenAI provider: Responses API, default model `gpt-5.6-luna`
@@ -61,22 +64,49 @@ The canonical handoff contains the exact Termux / Ubuntu / venv / backend-start 
 - The user prefers **one clear recommended path**, not a menu of choices unless alternatives are genuinely required.
 - When the user says `continue`, resume from the current repository state and act; do not ask them to repeat known context.
 - Prefer permanent root-cause fixes over patches/workarounds.
-- Do not fabricate builds, tests, security checks, device verification, signatures, hashes, or release readiness.
-- Distinguish source inspection, CI evidence, emulator evidence, and physical-device evidence.
-- Keep all secrets out of chat, screenshots, logs, commits, docs, and memory summaries.
+- Do not fabricate builds, tests, security checks, device verification, signatures, hashes, rewards, recognition or release readiness.
+- Distinguish source inspection, CI evidence, emulator evidence and physical-device evidence.
+- Keep all secrets out of chat, screenshots, logs, commits, docs and memory summaries.
 
-## Judge / Scout / team operating model
+## Judge / Scout / Archivist / team operating model
 
-POTATO uses a coordinated senior engineering-team model. The canonical handoff lists the permanent roles and how the team evolves.
+POTATO uses a coordinated senior engineering-team model.
+
+- **Scout** re-checks current external technical evidence when needed.
+- **Specialists** investigate, design, implement, repair and test within their disciplines.
+- **Judge** is the independent task-quality and completion arbiter.
+- **The Archivist** is the permanent Record Keeper, Historian and Continuity Officer. It records externally meaningful work, decisions, verification, handoffs, contributions, milestones, achievements and real rewards/recognition in `docs/ARCHIVIST/`.
+
+Operating sequence:
+
+**Scout investigates -> Specialists perform the work -> Judge verifies -> Archivist records -> next chat resumes from the record.**
 
 Important standing rules:
 
-- **Judge** is the independent task-quality arbiter.
-- For substantive POTATO work, Judge should pre-score and post-score meaningful milestones when practical.
-- The user's requested completion bar for the current POTATO mission is **10/10**; do not inflate the score. A 10/10 requires direct evidence for the requested milestone.
-- If a milestone is below 10/10 and work can continue, continue fixing/testing rather than pretending it is complete.
-- **Scout** re-checks current official documentation/advisories for time-sensitive APIs, SDKs, dependencies, Play policy, security, and provider behavior.
-- Add or strengthen specialist responsibilities whenever a real failure exposes a capability gap, then capture the lesson and add regression coverage where practical.
+- Judge must not inflate scores. A 10/10 requires direct evidence for the requested milestone.
+- If a milestone is below the requested completion bar and work can continue, continue fixing/testing rather than pretending it is complete.
+- The Archivist does not replace Judge and cannot turn an unverified statement into verified history.
+- The Archivist records concise rationale and evidence, not private chain-of-thought or hidden model state.
+- Add/strengthen specialist responsibilities when a real failure exposes a capability gap, then record the lesson and add regression coverage where practical.
+
+## Archivist closeout rule
+
+For every substantive POTATO work session, update the applicable files under `docs/ARCHIVIST/` before handoff:
+
+- `WORK_LEDGER.md`
+- `DECISION_LEDGER.md` when a durable decision changed
+- `VERIFICATION_LEDGER.md`
+- `ACHIEVEMENTS_AND_REWARDS.md` only for supported achievements/recognition/rewards
+- `CURRENT_STATE.md`
+- `HANDOFF_LEDGER.md`
+
+Then run:
+
+```bash
+python scripts/verify_archivist_records.py
+```
+
+If a prior session ended before closeout, reconstruct only what can be supported by Git history, diffs, CI/runtime evidence and existing records. Mark uncertainty; never invent history.
 
 ## Critical fixes that must not regress
 
@@ -89,17 +119,18 @@ Important standing rules:
 
 ## Production work still separate from the achieved physical-device smoke milestone
 
-Do not confuse the successful real-tablet V5.8 development smoke test with final Play production distribution. Remaining production/release gates can include developer-controlled release signing / Play App Signing, Play policy declarations, Play internal testing, production bearer auth, HTTPS deployment, secrets management, physical update testing, privacy/security regression, and fresh artifact/hash recording after future source changes.
+Do not confuse the successful real-tablet V5.8 development smoke test with final Play production distribution. Remaining production/release gates can include developer-controlled release signing / Play App Signing, Play policy declarations, Play internal testing, production bearer auth, HTTPS deployment, secrets management, physical update testing, privacy/security regression and fresh artifact/hash recording after future source changes.
 
 ## Source of truth
 
 The durable project memory is:
 
-1. repository source,
+1. repository source and Git history,
 2. `docs/POTATO_V5.8_CANONICAL_HANDOFF_AND_REBUILD.md`,
-3. tests,
-4. CI/build evidence,
-5. physical-device runtime evidence.
+3. `docs/ARCHIVIST/` records,
+4. tests,
+5. CI/build evidence,
+6. emulator/physical-device runtime evidence.
 
 Never substitute an assumption or remembered claim for those sources.
 
@@ -107,4 +138,4 @@ Never substitute an assumption or remembered claim for those sources.
 
 Use this as the first message in a new chat:
 
-> Open my GitHub repository `codygreenwood210-crypto/potato-jarvis`, use branch `potato-v5.8-final`, and read `POTATO_NEXT_CHAT_START_HERE.md` plus `docs/POTATO_V5.8_CANONICAL_HANDOFF_AND_REBUILD.md` in full before doing anything. Continue POTATO Jarvis from the verified V5.8 physical-device state. Preserve the Judge/Scout/team operating model, security model, tests, build evidence and real-device evidence. Do not ask me to repeat information already recorded there, do not expose secrets, and do not claim completion without direct verification.
+> Open my GitHub repository `codygreenwood210-crypto/potato-jarvis`, use branch `potato-v5.8-final`, and read `POTATO_NEXT_CHAT_START_HERE.md`, `docs/POTATO_V5.8_CANONICAL_HANDOFF_AND_REBUILD.md`, `docs/ARCHIVIST/README.md`, `docs/ARCHIVIST/CURRENT_STATE.md`, and the latest entry in `docs/ARCHIVIST/HANDOFF_LEDGER.md` in full before doing anything. Continue POTATO Jarvis from the recorded verified state. Preserve the Judge/Scout/Archivist/team operating model, security model, tests, build evidence and real-device evidence. Do not ask me to repeat information already recorded there, do not expose secrets, and do not claim completion without direct verification. Before handing off substantive work, update the Archivist records.

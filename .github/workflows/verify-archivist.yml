@@ -1,0 +1,31 @@
+name: Verify POTATO Archivist Records
+
+on:
+  push:
+    branches: [potato-v5.8-final]
+    paths:
+      - 'POTATO_NEXT_CHAT_START_HERE.md'
+      - 'docs/ARCHIVIST/**'
+      - 'scripts/verify_archivist_records.py'
+      - '.github/workflows/verify-archivist.yml'
+  pull_request:
+    paths:
+      - 'POTATO_NEXT_CHAT_START_HERE.md'
+      - 'docs/ARCHIVIST/**'
+      - 'scripts/verify_archivist_records.py'
+      - '.github/workflows/verify-archivist.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-archivist:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Verify Archivist continuity contract
+        run: python scripts/verify_archivist_records.py
