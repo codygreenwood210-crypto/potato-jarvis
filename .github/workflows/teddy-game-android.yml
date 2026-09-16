@@ -150,7 +150,6 @@ jobs:
           emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
-            set -eu
             adb install -r teddy-game/app/build/outputs/apk/debug/app-debug.apk
             adb shell settings put secure immersive_mode_confirmations confirmed || true
             adb logcat -c
@@ -160,20 +159,14 @@ jobs:
             adb shell pidof com.potatopixelartstudios.teddygame | tee teddy-game/emulator-pid.txt
             adb shell uiautomator dump /sdcard/teddy-window.xml >/dev/null 2>&1 || true
             adb shell cat /sdcard/teddy-window.xml > teddy-game/emulator-window.xml 2>/dev/null || true
-            if grep -q 'Viewing full screen' teddy-game/emulator-window.xml 2>/dev/null; then
-              echo 'System immersive-mode tutorial obscured the game' >&2
-              exit 1
-            fi
+            ! grep -q 'Viewing full screen' teddy-game/emulator-window.xml
             adb exec-out screencap -p > teddy-game/emulator-title.png
             adb shell input tap 1200 810
             sleep 1
             adb shell input tap 1200 830
             sleep 2
             adb exec-out screencap -p > teddy-game/emulator-gameplay.png
-            if cmp -s teddy-game/emulator-title.png teddy-game/emulator-gameplay.png; then
-              echo 'Gameplay screenshot did not change after starting the game' >&2
-              exit 1
-            fi
+            ! cmp -s teddy-game/emulator-title.png teddy-game/emulator-gameplay.png
             adb shell input keyevent KEYCODE_HOME
             sleep 1
             adb shell am start -W -n com.potatopixelartstudios.teddygame/.MainActivity | tee teddy-game/emulator-resume.txt
