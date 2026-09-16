@@ -17,13 +17,14 @@ def request(path: str, method: str = "GET", body: dict | None = None) -> dict:
         return json.loads(raw or "{}")
 
 
-def create(description: str, priority: str = "normal") -> dict:
+def create(description: str, due_at: str) -> dict:
     return request(
         "/v1/tasks",
         "POST",
         {
             "description": description,
-            "priority": priority,
+            "priority": "normal",
+            "due_at": due_at,
             "recurrence": "none",
             "dependencies": [],
             "notes": "UI reference fixture",
@@ -32,10 +33,10 @@ def create(description: str, priority: str = "normal") -> dict:
 
 
 created = [
-    create("Review project proposal", "normal"),
-    create("Call Mom", "normal"),
-    create("Work on POTATO V5.8 ideas", "high"),
-    create("Go for a walk", "low"),
+    create("Review project proposal", "2026-09-16T09:00:00+00:00"),
+    create("Call Mom", "2026-09-16T11:00:00+00:00"),
+    create("Work on POTATO V5.8 ideas", "2026-09-16T14:30:00+00:00"),
+    create("Go for a walk", "2026-09-16T18:00:00+00:00"),
 ]
 
 first_id = created[0].get("id", "")
