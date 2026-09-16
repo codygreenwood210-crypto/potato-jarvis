@@ -261,9 +261,11 @@ public final class GameState {
             questStage = QuestStage.BOSS;
             return;
         }
-        if (bossPurified && playerX <= 1720f && questStage == QuestStage.RETURN_HOME) {
-            villageReturned = true;
-            questStage = QuestStage.COMPLETE;
+        if (bossPurified && questStage == QuestStage.RETURN_HOME) {
+            // Returning to the hub is itself part of the slice. First expose the changed
+            // Moonstitch state, then only complete once Teddy reaches the town square.
+            if (playerX <= 1720f) villageReturned = true;
+            if (playerX <= 300f) questStage = QuestStage.COMPLETE;
         }
     }
 
