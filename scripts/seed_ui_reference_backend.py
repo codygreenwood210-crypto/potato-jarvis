@@ -1,6 +1,7 @@
 import json
 import urllib.request
 
+# Disposable local-backend fixture used only by the graphical proof workflow.
 BASE = "http://127.0.0.1:8000"
 
 
