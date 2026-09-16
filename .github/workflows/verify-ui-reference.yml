@@ -93,6 +93,12 @@ jobs:
           done
           grep -q '"version":"5.8"' "$RUNNER_TEMP/health.json"
 
+      - name: Seed disposable reference-screen tasks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/seed_ui_reference_backend.py
+
       - name: Boot emulator and capture POTATO UI
         shell: bash
         run: |
@@ -152,7 +158,16 @@ jobs:
           if grep -q 'Optional Accessibility context' "$RUNNER_TEMP/window.xml"; then tap_text 'Accept'; sleep 2; fi
           dump_ui
           if grep -Eq 'Connect your AI assistant|Test &amp; Connect|Test & Connect' "$RUNNER_TEMP/window.xml"; then tap_text 'Test & Connect'; sleep 5; fi
-          dump_ui
+          for i in $(seq 1 20); do
+            dump_ui
+            if grep -q 'Hey Cody' "$RUNNER_TEMP/window.xml" && grep -q 'Review project proposal' "$RUNNER_TEMP/window.xml"; then break; fi
+            sleep 1
+          done
+          grep -q 'Hey Cody' "$RUNNER_TEMP/window.xml"
+          grep -q 'Your tasks for today' "$RUNNER_TEMP/window.xml"
+          grep -q 'Review project proposal' "$RUNNER_TEMP/window.xml"
+          grep -q 'Work on POTATO V5.8 ideas' "$RUNNER_TEMP/window.xml"
+          grep -q 'Ask POTATO anything' "$RUNNER_TEMP/window.xml"
           "$ADB" -s "$SERIAL" exec-out screencap -p > "$RUNNER_TEMP/POTATO-UI-reference.png"
           test -s "$RUNNER_TEMP/POTATO-UI-reference.png"
           cp "$RUNNER_TEMP/window.xml" "$RUNNER_TEMP/POTATO-UI-reference.xml"
