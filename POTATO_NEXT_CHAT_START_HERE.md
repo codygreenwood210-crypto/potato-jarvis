@@ -83,8 +83,9 @@ Operating sequence:
 
 Important standing rules:
 
-- Judge must not inflate scores. A 10/10 requires direct evidence for the requested milestone.
-- If a milestone is below the requested completion bar and work can continue, continue fixing/testing rather than pretending it is complete.
+- For substantive POTATO work, Judge should pre-score and post-score meaningful milestones when practical.
+- The user's requested completion bar for the current POTATO mission is **10/10**; Judge must not inflate scores. A 10/10 requires direct evidence for the requested milestone.
+- If a milestone is below 10/10 and work can continue, continue fixing/testing rather than pretending it is complete.
 - The Archivist does not replace Judge and cannot turn an unverified statement into verified history.
 - The Archivist records concise rationale and evidence, not private chain-of-thought or hidden model state.
 - Add/strengthen specialist responsibilities when a real failure exposes a capability gap, then record the lesson and add regression coverage where practical.
