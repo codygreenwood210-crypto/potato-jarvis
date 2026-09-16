@@ -59,6 +59,17 @@ public final class GameStateSelfTest {
         ok(secret.coins == coins + 12 && secret.potions == 2, "secret reward granted");
         ok(!secret.discoverSecret(), "secret reward one-time");
 
+        GameState home = new GameState();
+        home.bossPurified = true;
+        home.questStage = GameState.QuestStage.RETURN_HOME;
+        home.playerX = 1600;
+        home.updateStoryProgress();
+        ok(home.villageReturned, "changed hub activates on return");
+        ok(home.questStage == GameState.QuestStage.RETURN_HOME, "changed hub remains playable");
+        home.playerX = 250;
+        home.updateStoryProgress();
+        ok(home.questStage == GameState.QuestStage.COMPLETE, "slice completes in town square");
+
         System.out.println("GameStateSelfTest PASS — " + checks + " assertions");
     }
 }
