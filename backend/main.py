@@ -1123,7 +1123,7 @@ class ToolRegistry:
 
     def function_definitions(self) -> list[dict[str, Any]]:
         return [
-            {"type": "function", "name": spec.name, "description": spec.description, "parameters": spec.args_schema, "strict": True}
+            {"type": "function", "name": spec.name, "description": spec.description, "parameters": spec.args_schema, "strict": set(spec.args_schema.get("required", [])) == set(spec.args_schema.get("properties", {}).keys())}
             for spec in self.all() if spec.name != "web_search"
         ]
 
