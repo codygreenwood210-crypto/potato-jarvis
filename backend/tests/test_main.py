@@ -1236,7 +1236,7 @@ def test_proactive_settings_and_overdue_suggestion():
 def test_proactive_disabled_and_quiet_hours(monkeypatch):
     client.put("/v1/proactive/settings", json={"enabled": False, "mode": "helpful", "daily_limit": 5, "quiet_start": 0, "quiet_end": 23})
     assert client.post("/v1/proactive/run").json()["reason"] == "disabled"
-    hour = main.datetime.now(main.timezone.utc).hour
+    hour = main.datetime.now().astimezone().hour
     client.put("/v1/proactive/settings", json={"enabled": True, "mode": "helpful", "daily_limit": 5, "quiet_start": hour, "quiet_end": (hour + 1) % 24})
     assert client.post("/v1/proactive/run").json()["reason"] == "quiet_hours"
     client.put("/v1/proactive/settings", json={"enabled": True, "mode": "permission_based", "daily_limit": 5, "quiet_start": 22, "quiet_end": 7})
