@@ -129,4 +129,17 @@ public class GameStateTest {
         assertFalse(s.discoverSecret());
         assertEquals(coins + 12, s.coins);
     }
+
+    @Test public void returningShardChangesHubBeforeCompletingSlice() {
+        GameState s = new GameState();
+        s.bossPurified = true;
+        s.questStage = GameState.QuestStage.RETURN_HOME;
+        s.playerX = 1600f;
+        s.updateStoryProgress();
+        assertTrue(s.villageReturned);
+        assertEquals(GameState.QuestStage.RETURN_HOME, s.questStage);
+        s.playerX = 250f;
+        s.updateStoryProgress();
+        assertEquals(GameState.QuestStage.COMPLETE, s.questStage);
+    }
 }
