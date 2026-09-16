@@ -140,11 +140,8 @@ jobs:
           SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
           test -d "$SDK_ROOT"
           echo "ANDROID_SDK_ROOT_RESOLVED=$SDK_ROOT"
-          find "$SDK_ROOT" -maxdepth 6 -type f \( -name sdkmanager -o -name avdmanager \) -print || true
           SDKMANAGER="$(find "$SDK_ROOT" -maxdepth 6 -type f -name sdkmanager 2>/dev/null | sort | tail -1)"
           AVDMANAGER="$(find "$SDK_ROOT" -maxdepth 6 -type f -name avdmanager 2>/dev/null | sort | tail -1)"
-          test -n "$SDKMANAGER"
-          test -n "$AVDMANAGER"
           test -x "$SDKMANAGER"
           test -x "$AVDMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
@@ -172,9 +169,7 @@ jobs:
           python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 >"$RUNNER_TEMP/potato-backend.log" 2>&1 &
           echo $! >"$RUNNER_TEMP/potato-backend.pid"
           for i in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8000/v1/health >"$RUNNER_TEMP/health.json"; then
-              break
-            fi
+            if curl -fsS http://127.0.0.1:8000/v1/health >"$RUNNER_TEMP/health.json"; then break; fi
             sleep 1
           done
           cat "$RUNNER_TEMP/health.json"
@@ -185,11 +180,21 @@ jobs:
         run: |
           set -euo pipefail
           if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm || true; fi
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
           echo no | "$AVDMANAGER" create avd --force --name potato-ci --package "system-images;android-35;google_apis;x86_64" --device "pixel_6"
-          "$EMULATOR" \
-            -avd potato-ci -no-window -noaudio -no-boot-anim -no-snapshot \
-            -gpu swiftshader_indirect >"$RUNNER_TEMP/emulator.log" 2>&1 &
-          "$ADB" wait-for-device
+          test -s "$ANDROID_AVD_HOME/potato-ci.ini"
+          "$EMULATOR" -avd potato-ci -no-window -noaudio -no-boot-anim -no-snapshot -gpu swiftshader_indirect >"$RUNNER_TEMP/emulator.log" 2>&1 &
+          EMULATOR_PID=$!
+          for i in $(seq 1 180); do
+            if ! kill -0 "$EMULATOR_PID" 2>/dev/null; then
+              cat "$RUNNER_TEMP/emulator.log"
+              exit 1
+            fi
+            if "$ADB" devices | grep -q '^emulator-.*device$'; then break; fi
+            sleep 2
+          done
+          "$ADB" devices | grep -q '^emulator-.*device$'
           for i in $(seq 1 180); do
             if [ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then break; fi
             sleep 2
@@ -250,7 +255,6 @@ jobs:
         run: |
           set -euo pipefail
           APKSIGNER="$(find "$SDK_ROOT/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -1)"
-          test -n "$APKSIGNER"
           test -x "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs android/build/outputs/apk/debug/android-debug.apk | tee "$RUNNER_TEMP/apksigner.txt"
 
