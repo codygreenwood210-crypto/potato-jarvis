@@ -1,130 +1,95 @@
-# Universal Team — Teddy Game Story Handoff
+# Universal Team — Teddy Game Handoff
 
-> Temporary cross-project handoff record until Teddy Game has its own dedicated repository/source of truth. Do not treat this file as POTATO Jarvis application state.
+> Cross-project continuity record for Teddy Game. This is not POTATO Jarvis application state.
 
-## Purpose
-
-Preserve the durable Teddy Game narrative decisions and the Master Story Creation Team workflow so a future chat can continue without reconstructing this room.
-
-## Read order for a future chat
+## Current read order
 
 1. Google Drive: `UNIVERSAL TEAM MEMORY — START HERE`
 2. Google Drive: `Universal Team — Project Registry`
-3. Google Drive: `Universal Team — Interaction & Knowledge Ledger`, especially `UTM-2026-009`, `UTM-2026-010` and `UTM-2026-011`
-4. Google Drive: `Universal Team — Handoff Ledger`, including the latest Teddy/commercial handoff
-5. `TEDDY_GAME_ASSET_PACK_SALE_READINESS.md` for commercial asset-pack QA status
-6. This file for a compact Teddy-specific continuity summary
+3. Google Drive: `Universal Team — Interaction & Knowledge Ledger`, especially `UTM-2026-013`
+4. Google Drive: `Universal Team — Handoff Ledger`, especially `HANDOFF-2026-010`
+5. Google Drive: `Teddy Game — Asset Factory Story Lock & Archivist Handoff — 2026-09-17`, especially sections 16–20
+6. GitHub branch `teddy-game-production`: `TEDDY_GAME_MASTER_DEVELOPMENT_RECORD.md`
+7. This file for the compact cross-project summary
 
-## Project identity
+## Authoritative state — 2026-09-17
 
-- Project: Teddy Game
-- Genre: 2D side-scrolling RPG. Side-scrolling traversal/action/platforming supports the RPG; it does not reduce the project to a platformer-only game.
-- Commercial status: active concept/design/narrative development. No completed build/runtime state is claimed here.
-- Hero: the old/development name is **The Jester Teddy**. A new final proper name is still unresolved. `Patchwick` was only an assistant proposal and is **not canon**.
-- Visual identity: vertically split golden/yellow and purple Nightmare magic; stitched/seam construction; red stitched heart patch; jester styling; one yellow leg and one purple leg; preserve the split identity in art and animation.
-- Friendly NPC/allies art rule: friendly Gothic/Halloween visual design with approachable, funny or eccentric personalities.
+Teddy Game is a **2D side-scrolling action RPG** for Android. Production is to be rebuilt in **Godot 4.x stable** using **GDScript** and the preserved source archive `Teddy_Game_ULTIMATE_Complete_Gothic_Halloween_Asset_Pack_v1.1.zip`.
 
-## Critical canon rule — Teddy is one person
+The user's 134-section **TEDDY GAME — COMPLETE DEVELOPMENT ROADMAP** is the controlling development plan unless a newer explicit user decision or verified technical constraint supersedes part of it. The exact requested game must not be called complete until Judge passes the playable build at the user's required **11/10** standard.
 
-Teddy's purple/Nightmare nature is **not evil, not a separate personality, and must never become or split into an independent Shadow Teddy or separate purple/golden beings**.
+## Failed prototype / reset
 
-The Nightmare side is an inseparable part of Teddy: chaotic, instinctive, volatile, fearful, furious, creative, unpredictable and capable of great destructive force. The dramatic problem is balance, direction, acceptance and consequence — not defeating, purifying or removing that part of himself.
+The earlier native Android v0.2 prototype is **FAILED / SUPERSEDED as a production foundation**.
 
-The golden/Heartland side represents focus, hope, protection, kindness, courage, healing/creation and controlled magic. Neither side is morally superior. Teddy is whole because both belong to one person.
+Historical build, unit-test, lint and emulator-launch evidence remains valid only for those narrow claims. The user then tested the app and reported that it looked terrible, the controls did not work and it was nothing like the promised game. Screenshot evidence showed crude geometric/block world art, oversized HUD/touch controls and poor use of the supplied production assets.
 
-## World and core premise
+Permanent QA rule:
 
-- **Heartlands:** dreams, hope, friendship, courage, creativity, love, focus and creation.
-- **Nightmare Realm:** fear, anger, grief, painful/forgotten memories, instinct, uncertainty, chaos and destructive force.
-- Neither realm is inherently good or evil; both are necessary for emotional and magical balance.
-- **Moonstitch Hollow** is a friendly Gothic-Halloween village on the boundary between the realms, home to witches, ghosts, skeletons, vampires, mummies, pumpkin folk and other creatures.
-- **Heart Lantern:** ancient object at the village centre containing intertwined golden and violet magic; it maintains balance between the realms.
-- On Halloween the Heart Lantern shatters, scattering **Heart Shards**, opening rifts and destabilising creatures and geography.
+- `BUILD_VERIFIED` is not `PLAYABLE_VERIFIED`;
+- an installable APK does not prove the game works;
+- touch controls require runtime input proof;
+- asset/specification fidelity is part of acceptance;
+- static sliding sprites, placeholder rectangles and nonfunctional controls cannot pass Judge;
+- the replacement build must not reuse the failed native prototype as its visual/gameplay foundation.
 
-## Teddy's origin
+## Story canon — immutable rules
 
-Teddy was secretly created as a living bridge/safeguard using the remaining magic of two ancient guardians, one tied to the Heartlands and one to the Nightmare Realm. His red stitched heart holds the connection together. His origin creates a personhood question — being created for a purpose does not mean that purpose owns his life.
+- Teddy is **one person**.
+- Nightmare magic is **not evil** and is not a second personality.
+- There is no separate evil Shadow Teddy.
+- Teddy never splits into independent golden/purple beings.
+- Heartland and Nightmare are both necessary.
+- Heartland expresses hope, courage, love, imagination, focus, protection and constructive power.
+- Nightmare expresses fear, anger, grief, painful memory, instinct, uncertainty, chaos and immense emotional power.
+- Teddy's red stitched heart is the living bridge between the realms.
+- Teddy was created from the remaining magic of two ancient Guardians, one Heartland-linked and one Nightmare-linked.
+- The Unraveler was once Keeper of the Heart Lantern, tried to eliminate painful emotions and now seeks permanent separation of the Heartlands and Nightmare Realm.
 
-## Main antagonist — The Unraveler
+Legacy `dark_teddy`, `corrupted_teddy`, `shadow_teddy` and `giant_dark_teddy` assets must not represent a separate evil Teddy in main canon.
 
-The Unraveler was once the Keeper of the Heart Lantern. After witnessing suffering caused by fear, grief, anger, nightmares and pain, he tried to remove those emotions and create perfect order. The attempt made the world emotionally incomplete while suppressed Nightmare energy accumulated and eventually consumed him.
+## Confirmed story progression and cutoff
 
-He now believes the Heartlands and Nightmare Realm should be permanently separated. Teddy is living proof against that worldview because both can coexist within one person. The Unraveler targets Teddy's stitched heart because it is a living bridge between the realms.
+1. Moonstitch Hollow / Halloween Festival — Ghost Child, Witch Guide, Skeleton Blacksmith, Vampire Merchant and Mummy Healer; Teddy resonates with the Heart Lantern; it shatters; Heart Shards scatter; The Unraveler recognizes Teddy.
+2. Whispering Forest — Pumpkin King is trapped in unstable magic; Teddy uses Heartland stabilization plus Nightmare force to free him; first Heart Shard recovered.
+3. Forgotten Graveyard — Headless Knight tests Teddy; darkness, pain and memory are not automatically corruption.
+4. Broken Castle — Teddy discovers his Guardian origin; Chaos Surge occurs inside Teddy with no separate personality; growth comes from directing rather than suppressing chaos.
+5. Bone Caverns — Bone Dragon tests deliberate use of both magics; Keeper/Unraveler history is revealed.
+6. Nightmare Collision — Moonstitch and Nightmare Realm overlap; earlier allies return; Ghost Child is overwhelmed and rescued without being treated as evil.
+7. The Last Stitch — The Unraveler attacks Teddy's stitched heart. Teddy remains one person. He answers **“Maybe not all the time.”** and **“But it's still me.”** Teddy gives Nightmare chaos direction; purple power becomes movement, strength, unpredictable attacks and deliberate destructive force; **golden magic gives that power focus**.
 
-## Current working master campaign
+That last sentence is the **current confirmed story cutoff**. Any older assistant continuation after it — including restoration of the Heart Lantern, sparing/restoring the Keeper, rebuilt-Moonstitch epilogue, final Ghost Child “Both” ending or post-credits material — is **PROVISIONAL / NON-CANON unless the user explicitly reconfirms it**.
 
-1. **Moonstitch Hollow / Halloween opening** — introduce the village, Witch Guide, Skeleton Blacksmith, Vampire Merchant, Mummy Healer and Ghost Child. The Heart Lantern responds to Teddy's heart, then shatters. The Unraveler speaks through the rupture.
-2. **Whispering Forest** — corrupted creatures are revealed as victims of magical instability rather than simple evil. Teddy defeats and purifies the Corrupted Pumpkin King using Heartland and Nightmare power together; the Pumpkin King becomes an ally and provides a Heart Shard.
-3. **Forgotten Graveyard** — forgotten spirits and memory themes. The Headless Knight distrusts Teddy's Nightmare magic. Teddy learns the Nightmare Realm contains fear, grief, pain, regret and memory — darkness is not automatically evil.
-4. **Broken Castle / origin truth** — Teddy finds records of the two ancient guardians and discovers he was created from their remaining magic. His anger and fear trigger a **Chaos Surge** in his own Nightmare power. There is **no separate Shadow Teddy**. The challenge is learning to stop suppressing the chaos and give it direction.
-5. **Bone Caverns** — the Bone Dragon is not corrupted; it tests Teddy's ability to use both forms of magic. Teddy learns the full history of The Unraveler.
-6. **Nightmare collision / return home** — Moonstitch Hollow and the Nightmare Realm begin merging. Familiar locations twist. Teddy rescues villagers; characters previously helped return to assist. Ghost Child is overwhelmed by Nightmare distortion and is saved through protection/purification rather than ordinary killing.
-7. **The Last Stitch / final battle** — The Unraveler attacks Teddy's stitched heart and destabilises the link between his powers. Teddy **does not split into two beings**. His magic becomes dangerously chaotic while he remains one person. Teddy realises balance is not permanent calm or suppression: he can feel everything without allowing one emotion to decide everything. He gives chaos purpose. The Heart Shards respond; the Heart Lantern rebuilds; Teddy defeats The Unraveler using one integrated Heartland/Nightmare fighting style.
-8. **Final choice** — Teddy restores the Heart Lantern rather than simply killing The Unraveler. Restoration does not excuse the Unraveler's actions; it removes the unstable corruption consuming the former Keeper and forces him to feel the grief he tried to erase.
-9. **Epilogue** — Moonstitch Hollow is rebuilt but visibly remembers the adventure. Rescued characters move in, shops improve, new areas open, dialogue changes and the player's actions remain reflected in the hub.
-10. **Final Halloween** — Ghost Child asks, “So… which side are you really?” Teddy looks at his golden and purple hands and answers, “Both.” The meaning is one inseparable Teddy, not two personalities.
+## Development architecture
 
-## Narrative theme
+Follow **BUILD SMALL -> PROVE IT WORKS -> EXPAND -> TEST -> POLISH**.
 
-Core thematic statement: **order and chaos can coexist inside one whole person**. Fear, anger, grief and chaos are not automatically evil; what matters is how they are understood, directed and acted upon. The Unraveler represents destructive forced separation; Teddy represents integrated balance.
+Core requirements include a portable Godot project; 2D pixel-safe rendering; named input actions shared by keyboard/controller/touch; CharacterBody2D player with a state machine; reusable hitbox/hurtbox combat; data-driven weapons/items/abilities/enemies/quests/dialogue; EnemyBase/BossBase; scene-per-level world architecture; versioned save/load; HUD/menus/dialogue/inventory/map/settings; AudioManager; GameManager/event bus; debug tools disabled in production; Android export; and evidence-specific QA.
 
-A useful development line is: **Two sides. One heart.** Treat it as a working tagline unless the user explicitly canonizes it.
+## First proving milestone — Haunted/Whispering Forest vertical slice
 
-## Master Story Creation Team — standing workflow
+Must contain real Teddy art, movement, jump, combat, one weapon, dash or double jump, normal/ranged-or-flying/elite enemies, hazards, collectibles, checkpoint, NPC, chest, secret, HUD, music/SFX, **working mobile controls**, Pumpkin King boss, death/respawn, save/load and level completion.
 
-For story work, operate as a professional collaborative writers' room using:
+It passes only after a full level playthrough proves movement, jump, attack, damage, death/respawn, enemy AI, boss, checkpoint, save/reload/Continue, touch input, HUD and audio with no game-breaking error.
 
-**Discover → Imagine → Develop → Challenge → Structure → Draft → Review → Rewrite → Verify → Canonize**
+## Production phase order
 
-Keep brainstorming, proposals, provisional canon, established canon, rejected ideas, open questions, setups/payoffs, character states and timeline separate. Never silently turn brainstorming into canon or silently retcon established material. The creator has final authority.
+Preservation -> Godot Foundation -> Player -> Player Polish -> Combat -> First Enemy -> Level System -> Checkpoint/Save -> UI -> Mobile Controls -> First Boss -> Vertical Slice -> NPC/Dialogue/Quests -> Inventory/Items/Weapons -> Abilities/Progression -> Additional Enemies -> Remaining Worlds/Bosses -> Complete Story Integration -> Android Optimisation -> Full QA -> Replace Weak Placeholders -> Commercial Polish -> Android Release Candidate -> Physical-Device Verification -> Version 1.0.
 
-Specialist perspectives include Story Director, Concept/World/Character/Relationship/Antagonist/Plot/Subplot Architects, Foreshadowing & Payoff, Mystery & Twist, Theme, Emotion, Scene, Dialogue, Prose & Atmosphere, Pacing, Continuity, Logic & Consequence, Originality, Story Critic, Audience Advocate and Canon Archivist.
+## Highest-priority asset gaps
 
-Major decisions should move through define/explore/investigate/challenge/synthesize/decide/develop/verify/rewrite/canonize. Character choices must pass Personality + Knowledge + Motivation + Emotion + Circumstances. Significant actions accumulate consequences. Major solutions should grow from prior setups rather than coincidence, unexplained powers or arbitrary rule changes.
+Heart Lantern; Heart Shards; The Unraveler/Original Keeper; Ancient Heartland/Nightmare Guardians; complete Teddy directional/combat/story animation sets; stitched-heart states; Heartland/Nightmare/combined VFX; Pumpkin King boss/friendly/stabilised sets; Headless Knight; Bone Dragon; Ghost Child emotional/story set; Halloween Festival/Heart Lantern disaster/Nightmare Collision Moonstitch states; Broken Castle origin art; Bone Caverns story art; Last Stitch final-region art; cutscenes; expanded music/SFX; compact commercial HUD; functional touch-control art; major portraits; final store graphics.
 
-## Canon status / open questions
+## Evidence ladder
 
-### Established / user-directed
+Use `PLANNED -> IN_PROGRESS -> IMPLEMENTED_UNVERIFIED -> SOURCE_VERIFIED -> TEST_VERIFIED -> BUILD_VERIFIED -> EMULATOR_VERIFIED -> DEVICE_VERIFIED -> JUDGE_VERIFIED`, plus `BLOCKED`, `FAILED`, `SUPERSEDED` as applicable. Never upgrade status merely because code or an APK exists.
 
-- 2D side-scrolling RPG direction.
-- Friendly Gothic-Halloween Moonstitch Hollow and NPC/allies direction.
-- Gold/Heartland and purple/Nightmare dual magic identity.
-- Purple/Nightmare side is chaotic but **not evil or separate**.
-- Teddy must never split into an independent Shadow Teddy or separate golden/purple beings.
-- Heartlands/Nightmare balance theme and The Unraveler/Heart Lantern/Heart Shards core story direction from the user's supplied narrative.
-- Ghost Child is a close friend and the final “Both” exchange remains the emotional target.
+## Commercial asset-pack note
 
-### Working master narrative / provisional details
+The original Teddy v1.1 ZIP remains **NOT APPROVED FOR PAID ASSET-PACK SALE** under the existing commercial QA record. That decision is separate from using the ZIP as the game's internal source-art foundation. The separate Friendly Gothic Halloween generic marketplace candidate must not be conflated with Teddy Game canon/IP.
 
-- Exact scene dialogue beyond the user's supplied lines.
-- The exact implementation and naming of the Broken Castle `Chaos Surge` sequence.
-- Exact boss mechanics, purification mechanics and final battle phases.
-- Exact title/tagline wording unless explicitly approved.
-- Any post-credits sequel hook.
+## Immediate next action
 
-### Open questions
+Do not continue from the failed native prototype. Preserve/audit the v1.1 source assets, especially Teddy animations, Forest art, first enemies, Pumpkin King, Ghost Child, HUD/touch graphics and critical Heart Lantern/Heart Shard gaps. Then create the Godot foundation and prove real Teddy movement, camera, collision and animation in a test room using actual production art. Only after that runtime foundation passes should combat and the rest of the vertical slice be layered on.
 
-- Teddy's new final proper name.
-- Final game title.
-- Exact quest/subplot structure, optional choices and NPC relationship arcs.
-- Exact mechanics that connect story state to RPG progression.
-
-### Invalidated direction
-
-- A separate evil Shadow Teddy.
-- Treating the purple side as moral evil.
-- Splitting Teddy into separate golden and purple characters during the climax.
-
-## Commercial asset-pack status — 2026-09-17
-
-The uploaded `Teddy_Game_ULTIMATE_Complete_Gothic_Halloween_Asset_Pack_v1.1.zip` failed the Universal Team paid-sale gate and remains **NOT APPROVED FOR PAID SALE**. The detailed evidence is recorded in `TEDDY_GAME_ASSET_PACK_SALE_READINESS.md` and Google Drive `UTM-2026-010`.
-
-The source-pack marketing photos reviewed in the originating conversation are `itch_cover_630x500.png` and `promo_board_01.png` through `promo_board_04.png`. They were shown to the user for review but are not approved storefront creatives because their quantity/variety claims and visual promise exceed what the audited source pack supports.
-
-A later Universal Team record, `UTM-2026-011`, documents a **separate generic commercial candidate** named `Potato_Pixel_Art_Studios_Friendly_Gothic_Halloween_Mega_Pack_v1.0.zip`. That separate product does not reverse the failed-sale decision on the original Teddy v1.1 pack and must not be conflated with Teddy Game canon/IP.
-
-## Next action
-
-When story work resumes, read the durable records first, then use the Story Creation Team to turn the working master narrative into a formal Teddy Game Story Bible: established canon, provisional canon, character sheets, faction/world rules, campaign/quest structure, setup-payoff ledger, timeline, relationship state, dialogue voice guides and chapter/level scene plans. Do not rename Teddy or canonize provisional details without the creator's approval.
-
-For asset-pack commercial work, do not publish the original Teddy v1.1 pack for money. Either remediate it fully and rerun QA/Marketing/Trust/Judge, or continue with the separately recorded generic commercial candidate under its own evidence ladder.
+If Judge is below 11/10, fix and retest rather than declaring completion.
