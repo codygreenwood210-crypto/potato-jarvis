@@ -10,9 +10,10 @@ Preserve the durable Teddy Game narrative decisions and the Master Story Creatio
 
 1. Google Drive: `UNIVERSAL TEAM MEMORY — START HERE`
 2. Google Drive: `Universal Team — Project Registry`
-3. Google Drive: `Universal Team — Interaction & Knowledge Ledger`, record `UTM-2026-009`
-4. Google Drive: `Universal Team — Handoff Ledger`, record `HANDOFF-2026-008`
-5. This file for a compact Teddy-specific continuity summary
+3. Google Drive: `Universal Team — Interaction & Knowledge Ledger`, especially `UTM-2026-009`, `UTM-2026-010` and `UTM-2026-011`
+4. Google Drive: `Universal Team — Handoff Ledger`, including the latest Teddy/commercial handoff
+5. `TEDDY_GAME_ASSET_PACK_SALE_READINESS.md` for commercial asset-pack QA status
+6. This file for a compact Teddy-specific continuity summary
 
 ## Project identity
 
@@ -114,6 +115,16 @@ Major decisions should move through define/explore/investigate/challenge/synthes
 - Treating the purple side as moral evil.
 - Splitting Teddy into separate golden and purple characters during the climax.
 
+## Commercial asset-pack status — 2026-09-17
+
+The uploaded `Teddy_Game_ULTIMATE_Complete_Gothic_Halloween_Asset_Pack_v1.1.zip` failed the Universal Team paid-sale gate and remains **NOT APPROVED FOR PAID SALE**. The detailed evidence is recorded in `TEDDY_GAME_ASSET_PACK_SALE_READINESS.md` and Google Drive `UTM-2026-010`.
+
+The source-pack marketing photos reviewed in the originating conversation are `itch_cover_630x500.png` and `promo_board_01.png` through `promo_board_04.png`. They were shown to the user for review but are not approved storefront creatives because their quantity/variety claims and visual promise exceed what the audited source pack supports.
+
+A later Universal Team record, `UTM-2026-011`, documents a **separate generic commercial candidate** named `Potato_Pixel_Art_Studios_Friendly_Gothic_Halloween_Mega_Pack_v1.0.zip`. That separate product does not reverse the failed-sale decision on the original Teddy v1.1 pack and must not be conflated with Teddy Game canon/IP.
+
 ## Next action
 
 When story work resumes, read the durable records first, then use the Story Creation Team to turn the working master narrative into a formal Teddy Game Story Bible: established canon, provisional canon, character sheets, faction/world rules, campaign/quest structure, setup-payoff ledger, timeline, relationship state, dialogue voice guides and chapter/level scene plans. Do not rename Teddy or canonize provisional details without the creator's approval.
+
+For asset-pack commercial work, do not publish the original Teddy v1.1 pack for money. Either remediate it fully and rerun QA/Marketing/Trust/Judge, or continue with the separately recorded generic commercial candidate under its own evidence ladder.
