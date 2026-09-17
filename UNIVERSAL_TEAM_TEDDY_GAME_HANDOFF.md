@@ -8,9 +8,10 @@
 2. Google Drive: `Universal Team — Project Registry`
 3. Google Drive: `Universal Team — Interaction & Knowledge Ledger`, especially `UTM-2026-013`
 4. Google Drive: `Universal Team — Handoff Ledger`, especially `HANDOFF-2026-010`
-5. Google Drive: `Teddy Game — Asset Factory Story Lock & Archivist Handoff — 2026-09-17`, especially sections 16–20
+5. Google Drive: `Teddy Game — Asset Factory Story Lock & Archivist Handoff — 2026-09-17`, now including the latest Archivist Sync section
 6. GitHub branch `teddy-game-production`: `TEDDY_GAME_MASTER_DEVELOPMENT_RECORD.md`
-7. This file for the compact cross-project summary
+7. GitHub branch `teddy-game-production`: `TEDDY_GAME_MASTER_ASSET_REQUIREMENTS.md`
+8. This file for the compact cross-project summary
 
 ## Authoritative state — 2026-09-17
 
@@ -32,6 +33,8 @@ Permanent QA rule:
 - asset/specification fidelity is part of acceptance;
 - static sliding sprites, placeholder rectangles and nonfunctional controls cannot pass Judge;
 - the replacement build must not reuse the failed native prototype as its visual/gameplay foundation.
+
+The production percentage/status should therefore be treated as reset to the early **asset-audit / Godot foundation preparation** stage rather than carrying forward any earlier inflated prototype percentage.
 
 ## Story canon — immutable rules
 
@@ -79,6 +82,8 @@ Preservation -> Godot Foundation -> Player -> Player Polish -> Combat -> First E
 ## Highest-priority asset gaps
 
 Heart Lantern; Heart Shards; The Unraveler/Original Keeper; Ancient Heartland/Nightmare Guardians; complete Teddy directional/combat/story animation sets; stitched-heart states; Heartland/Nightmare/combined VFX; Pumpkin King boss/friendly/stabilised sets; Headless Knight; Bone Dragon; Ghost Child emotional/story set; Halloween Festival/Heart Lantern disaster/Nightmare Collision Moonstitch states; Broken Castle origin art; Bone Caverns story art; Last Stitch final-region art; cutscenes; expanded music/SFX; compact commercial HUD; functional touch-control art; major portraits; final store graphics.
+
+The detailed category-by-category audit/creation checklist is now preserved in `TEDDY_GAME_MASTER_ASSET_REQUIREMENTS.md` on branch `teddy-game-production`. Any `HAVE`/`VERIFY` planning label remains provisional until source/visual audit; file existence alone does not make an asset production-ready.
 
 ## Evidence ladder
 
