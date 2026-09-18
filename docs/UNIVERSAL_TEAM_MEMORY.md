@@ -172,3 +172,16 @@ Those commands are the next source-of-truth checkpoint for deciding what OpenCod
 The earlier section certifying **Proof — Final Response Integrity Reviewer** at 11/10 is superseded. Whole-chat review found the admission lacked genuinely independent practical evidence and Proof did not prevent the same communication failures it was intended to catch. Proof is therefore a **candidate / REWORK_REQUIRED**, not a certified primary operator. The active V2 primary-operator count remains **80** until Proof or another new role earns admission through a real practical assessment with direct evidence and Judge 11/10.
 
 See the Google Drive continuity records `UTM-2026-016`, `LESSON-2026-014`, and `HANDOFF-2026-013` for the matching cross-project closeout.
+
+
+## Judge pre-pass enforcement upgrade — 2026-09-18
+
+Judge may not PASS a substantive task unless three independent conditions are satisfied before final acceptance:
+
+1. **Proofread / response-integrity gate:** the final user-facing draft has been reread after all edits and confirmed to be exactly what was intended, complete, internally consistent, copy/paste-safe, and evidence-aligned. Any post-review edit invalidates this gate and requires a fresh review.
+2. **Whole-Team Completion Check:** Judge must ask every certified primary operator in the current canonical Universal Team roster whether the task is complete. Each primary operator reviews from its discipline and all embedded specialties it represents. Every applicable response must be COMPLETE. NOT_COMPLETE, UNKNOWN, silence, assumed agreement, or an incomplete poll blocks PASS.
+3. **Rubric gate:** Judge must score the work against the current 1/10–11/10 rubric using direct evidence. A score below 10/10 blocks PASS consideration. A 10/10 satisfies the user's minimum rubric condition but remains FAIL / FINAL_REWORK_REQUIRED under the standing 11/10 rule. Only 11/10, after the proofread and whole-team gates also pass, may become JUDGE_VERIFIED.
+
+Required order: WORK -> TEST -> FINAL DRAFT -> PROOFREAD GATE -> WHOLE-TEAM COMPLETENESS CHECK -> JUDGE RUBRIC -> PASS/REWORK.
+
+Judge may not infer that these gates passed merely because the score is high, and the implementation agent may not be the sole evidence source for final acceptance. Canonical detailed standard: docs/JUDGE_11_OF_10_STANDARD.md.
