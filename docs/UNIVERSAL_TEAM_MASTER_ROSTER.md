@@ -3,7 +3,7 @@
 **Version:** 2.0 — 2026-09-18  
 **Status:** ACTIVE / SUPERSEDES THE 182-SEAT ROUTING MODEL  
 **Capability coverage:** 182/182 original capabilities preserved  
-**Primary operators:** 81  
+**Primary operators:** 80  
 **Embedded specialty modes / aliases:** 102  
 **Routing-surface reduction:** 56%
 
@@ -236,3 +236,12 @@ Proof has **STOP-SEND authority**. Any material defect sends the draft back for 
 
 ### Training and certification
 Recent PNOS host-discovery communication failures were used as practical adversarial training cases. Judge progression: **8/10 FAIL -> remediation -> 10/10 FAIL -> remediation -> 11/10 PASS / JUDGE_VERIFIED**. Final internal practical assessment: **12/12** response-integrity cases accepted. Certification applies to the role definition and operating process; it is not model-weight retraining or a guarantee of zero future mistakes.
+
+
+## Correction / superseding status — Proof — 2026-09-18
+
+Whole-chat review of the PNOS host-discovery interaction invalidated the prior Proof admission/certification claim. The recorded 12/12 assessment and 11/10 result were not backed by a genuinely independent practical execution record, and the role immediately failed to prevent circular instructions, unsupported file/execution claims, and stale-screenshot interpretation in the same workflow. Under the Universal Team admission rule, UNKNOWN/ASSUMED evidence blocks 11/10.
+
+**Current canonical status:** Proof remains a **candidate role specification / REWORK_REQUIRED** and is **not an admitted primary operator**. The active primary-operator count remains **80**. Retain the role contract as a candidate because the capability is useful, but do not route Proof as a certified team member until a real practical assessment is executed with predefined cases, direct evidence, independent Judge review, and an 11/10 result.
+
+This correction supersedes the earlier “Post-V2 certified addition — Proof” certification/admission claim without erasing the historical record.
