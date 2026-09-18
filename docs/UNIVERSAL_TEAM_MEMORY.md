@@ -10,7 +10,7 @@ The team works by evidence, not confidence. Source inspection, tests, builds, em
 
 ## Permanent core roles
 
-- **Judge** — independent quality/completion arbiter. For substantive milestones, pre-score and post-score when practical. The current user-directed completion bar is 11/10: scores 1/10 through 10/10 are FAIL / REWORK_REQUIRED; only 11/10 is PASS / JUDGE_VERIFIED. Judge must not inflate scores and must use direct evidence for the requested milestone.
+- **Judge** — independent quality/completion arbiter. The current user-directed pass standard requires three gates: final proofread integrity, whole-certified-team confirmation of completeness, and an evidence-based rubric score of at least 10/10. Scores 1/10 through 9/10 are FAIL / REWORK_REQUIRED; 10/10 or 11/10 may PASS only after the other two gates also pass. Judge must not inflate scores and must use direct evidence.
 - **Scout** — researches current external technical evidence, official docs, advisories, APIs, SDKs, dependency behavior, platform policy and other time-sensitive facts.
 - **Archivist** — durable record keeper, historian and continuity officer. Records decisions, completed work, verification, unresolved issues, handoffs, contributions, milestones, achievements, recognition and actual rewards.
 - **Guild Master / Team Evolution Director** — evolves the team and specialization model as work reveals new needs.
@@ -70,7 +70,7 @@ Graphical operating chain: **Scout -> Vision -> Canvas/Flow/Palette/Type/Shape/I
 6. Guard/Privacy/Access/security roles block unsafe regressions.
 7. QA/build/runtime evidence is collected at the correct evidence level.
 8. Judge post-scores against the exact user request.
-9. If below 11/10 and more work is possible, continue rework/testing; only 11/10 may pass.
+9. Judge PASS requires the final proofread gate, whole-team completion gate, and a rubric score of at least 10/10. Any failed gate returns the task to rework.
 10. Archivist records decisions, evidence, unresolved work, team contributions, achievements and supported recognition/rewards.
 11. Skills Trainer and Capability Gap Hunter turn real failures into stronger future capability and regression coverage where practical.
 
@@ -185,3 +185,20 @@ Judge may not PASS a substantive task unless three independent conditions are sa
 Required order: WORK -> TEST -> FINAL DRAFT -> PROOFREAD GATE -> WHOLE-TEAM COMPLETENESS CHECK -> JUDGE RUBRIC -> PASS/REWORK.
 
 Judge may not infer that these gates passed merely because the score is high, and the implementation agent may not be the sole evidence source for final acceptance. Canonical detailed standard: docs/JUDGE_11_OF_10_STANDARD.md.
+
+
+## Judge exact pass standard — 2026-09-19
+
+This is the current canonical Judge rule and supersedes the earlier 11-only completion threshold.
+
+Judge may PASS / JUDGE_VERIFIED only when all three conditions are satisfied:
+
+1. **Final proofread gate:** the complete final user-facing version has been independently reread after all edits and confirmed to be exactly what was intended, complete, internally consistent, copy/paste-safe and evidence-aligned. Any later edit invalidates the gate and requires re-review.
+2. **Whole-Team Completion Check:** every certified primary operator in the current canonical roster is asked whether the task is complete, with each primary operator covering its embedded specialties. Every applicable reviewer must return COMPLETE. NOT_COMPLETE, UNKNOWN, missing response, silence, assumed agreement or unresolved objection blocks PASS.
+3. **Judge rubric gate:** Judge applies the evidence-based 1/10–11/10 rubric. Scores 1–9 are FAIL / REWORK_REQUIRED. 10/10 is PASS / JUDGE_VERIFIED. 11/10 is PASS / JUDGE_VERIFIED / EXCEPTIONAL. A score of at least 10/10 is required.
+
+Required order: WORK -> TEST -> FINAL VERSION -> PROOFREAD -> WHOLE-TEAM COMPLETION CHECK -> JUDGE RUBRIC -> PASS/REWORK.
+
+The producer of the work may not be the sole source proving completion. Agent prose is not authoritative execution evidence. Direct filesystem, Git, test-runner, runtime/device, provider and source evidence should be used where applicable.
+
+Canonical detailed standard: `docs/JUDGE_11_OF_10_STANDARD.md` on `potato-v5.8-final` (filename retained for historical continuity; content now reflects the 2026-09-19 rule).
