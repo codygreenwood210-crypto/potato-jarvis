@@ -1,212 +1,227 @@
-# Universal Team Judge — 11/10 Enforcement Standard
+# Universal Team Judge — Exact User Pass Standard
 
-**Effective:** 2026-09-17  
+**Effective:** 2026-09-19  
 **Scope:** Universal Team and Potato Network OS Judge-controlled substantive tasks  
-**Status:** CURRENT / USER-DIRECTED / SUPERSEDES PRIOR ORDINARY 10/10 COMPLETION RULE
+**Status:** CURRENT / USER-DIRECTED / SUPERSEDES PRIOR 11-ONLY PASS RULE
 
-## Core rule
+## Canonical pass rule
 
-The Judge is a mandatory enforcement gate, not merely an advisory reviewer.
+Judge may mark a task **PASS / JUDGE_VERIFIED** only when **all three mandatory gates below pass**.
 
-For every Judge-controlled task, the operating loop is:
+A task that fails any one gate is **REWORK_REQUIRED**.
 
-**WORK -> TEST -> JUDGE -> FAIL -> REWORK_REQUIRED -> REASSIGN/FIX/REDO -> RETEST -> JUDGE AGAIN**
+### Gate 1 — Final proofread / response-integrity check
 
-Repeat until PASS.
+Before Judge may pass a user-facing deliverable, the **complete final version** must be independently proofread **after all edits are finished**.
 
-A task cannot move to `COMPLETE` while Judge scores it below **11/10**. Scores from **1/10 through 10/10 are FAIL / REWORK REQUIRED**. Only **11/10 is PASS / JUDGE VERIFIED**.
+The proofread must confirm that the final response or deliverable:
 
-This newer user-directed rule supersedes the earlier Universal Team rule that ordinary project steps could complete at 10/10. Historical scores remain historical evidence and must not be silently rewritten.
+- is exactly what was intended to be sent to the user;
+- answers every part of the user's request;
+- contains no accidental omissions, substitutions, contradictions, duplicated or circular instructions;
+- preserves literal commands, paths, filenames, branch names, IDs, links, code and quoted text exactly where accuracy matters;
+- is copy/paste-safe where the user is expected to copy it;
+- distinguishes current evidence from stale screenshots, prior runs, fixtures, examples and assumptions;
+- does not claim that files, tests, commits, API calls, runtime results, tools, builds, artifacts or external outcomes exist unless evidence supports the claim;
+- contains no invented results, placeholders presented as facts, or unsupported completion claims.
 
-The user remains the ultimate authority and may explicitly override a mission gate, but no team member may silently bypass Judge.
+The author/implementer may not be the sole reviewer for this gate.
 
-## Mandatory failure behavior
+The proofread result is one of:
 
-Whenever Judge scores below 11/10, Judge must provide:
+- `PROOFREAD_PASS`
+- `PROOFREAD_FAIL`
 
-- exact score;
-- PASS/FAIL state;
-- acceptance criteria that passed;
-- acceptance criteria that failed or remain missing;
-- evidence reviewed;
-- defects and unresolved risks;
-- exact corrections required;
-- specialist/role that should perform the rework;
-- required retest or verification;
-- next state: `REWORK_REQUIRED`.
+Any edit after `PROOFREAD_PASS` invalidates the gate and requires a fresh proofread of the new final version.
 
-The work then returns automatically to active rework. After correction and retesting, it must return to Judge. This loop continues until 11/10 or until the user explicitly changes/cancels/overrides the mission.
-
-## Universal 1/10–11/10 grading rubric
-
-### 1/10 — Catastrophic failure — FAIL
-The task is essentially not accomplished. Output is unusable, fundamentally incorrect, dangerous to the project, fabricated, corrupted, or unrelated to the request. A restart is normally required.
-
-### 2/10 — Severe failure — FAIL
-Only a small amount of relevant work exists. The core requirement is absent or broken and substantial replacement is required.
-
-### 3/10 — Major failure — FAIL
-The direction is recognizable, but major systems, requirements, evidence, or outputs are missing or wrong. Significant redesign or rebuilding is required.
-
-### 4/10 — Weak / incomplete — FAIL
-Some useful work exists, but major gaps, defects, or unmet acceptance criteria remain and would create substantial rework.
-
-### 5/10 — Half-complete — FAIL
-Core work is partially functional but clearly unfinished. Important integration, edge cases, tests, documentation, quality, or verification remain unresolved.
-
-### 6/10 — Functional prototype — FAIL
-The main concept works in a limited form but remains prototype quality: fragile, placeholder-heavy, incompletely tested, weakly integrated, or insufficiently evidenced.
-
-### 7/10 — Good working draft — FAIL
-Most major requirements are present and generally work, but noticeable defects, missing refinement, reliability work, testing, or polish remain.
-
-### 8/10 — Strong implementation — FAIL
-The task is substantially correct and useful, with limited weaknesses, but at least one meaningful requirement, edge case, validation step, integration issue, usability problem, or evidence gap remains.
-
-### 9/10 — Excellent but not finished — FAIL
-High-quality work with no major architectural failure, but identifiable issues such as minor bugs, inconsistencies, incomplete documentation, insufficient runtime evidence, or requirement mismatch prevent final acceptance.
-
-### 10/10 — Fully meets ordinary specification — FAIL / FINAL REWORK REQUIRED
-The task appears complete, correct, tested, documented, and professionally executed, but Judge has not yet established the additional confidence required for Universal Team / Potato Network OS final acceptance: exact user-outcome verification, appropriate regression protection, integration consistency, no material unresolved risk, and sufficient direct evidence.
-
-A 10/10 result is extremely close, but it still returns for the final gap.
-
-### 11/10 — JUDGE VERIFIED — PASS
-The task fully satisfies the Mission Contract and exact user request. All mandatory requirements and acceptance criteria are met. Relevant tests and runtime verification pass. Artifacts are correct and usable. Integration with existing work is sound. Important edge cases are addressed. No known blocker, critical, high, or material unresolved defect remains. Security, privacy, canon, policy, and project rules are satisfied where applicable. Documentation and handoff are sufficient. Every completion claim is supported by evidence rather than assumption.
-
-Only this grade permits transition to `COMPLETE` after Archivist closeout when applicable.
-
-## Five mandatory 11/10 questions
-
-Before awarding 11/10, Judge must answer **YES** to all five:
-
-1. Did we build exactly what was requested?
-2. Does it actually work rather than merely exist?
-3. Do we have evidence proving that?
-4. Did we avoid introducing meaningful new problems?
-5. Would the user reasonably consider the task genuinely finished?
-
-Any **NO**, **UNKNOWN**, **ASSUMED**, or **UNVERIFIED** answer prevents 11/10.
-
-## Scoring integrity
-
-Judge may not raise or lower a score arbitrarily. Every score must trace back to:
-
-- Mission Contract;
-- exact user request;
-- explicit acceptance criteria;
-- relevant project/canon/security rules;
-- evidence;
-- tests;
-- runtime/device observations when applicable;
-- known defects and unresolved risks.
-
-Judge must not inflate a score because substantial effort was spent, because code exists, because a build launches, or because a previous agent claimed success.
-
-## Repeated-failure escalation
-
-If the same task repeatedly fails Judge, automatically activate **Capability Gap Hunter** and **Skills Trainer**.
-
-They must determine whether the root cause is primarily:
-
-- wrong agent or specialist;
-- weak role instructions;
-- model capability;
-- missing tool;
-- architecture/design problem;
-- process/handoff weakness;
-- missing or poor tests;
-- missing evidence;
-- stale/incorrect memory;
-- dependency/blocker;
-- another identified capability gap.
-
-Then strengthen the team/process, add regression protection where practical, reassign the work if needed, and run the task again.
-
-## Potato Network OS state-machine rule
-
-```text
-JUDGE_REVIEW
-    |
-    +-- score 1..10 --> REWORK_REQUIRED
-    |                    |
-    |                    v
-    |             ASSIGN/FIX/REDO
-    |                    |
-    |                    v
-    |                  RETEST
-    |                    |
-    |                    +----> JUDGE_REVIEW
-    |
-    +-- score 11 ------> JUDGE_VERIFIED
-                         |
-                         v
-                      ARCHIVIST
-                         |
-                         v
-                      COMPLETE
-```
-
-This standard is intended to be implemented as a hard workflow rule in Potato Network OS rather than only as prompt wording.
-
-## Mandatory pre-pass gates — effective 2026-09-18
-
-Judge may not award PASS or JUDGE_VERIFIED unless **all** of the following gates have completed successfully. These are necessary conditions in addition to the existing 11/10 rule.
-
-### Gate 1 — Final proofread / response-integrity review
-
-Before Judge can pass a user-facing deliverable, the complete final response must be independently reread after all edits are finished.
-
-The reviewer must verify that:
-- the response is exactly what was intended to be sent to the user;
-- every part of the user's request is answered;
-- commands, paths, filenames, branch names, IDs, links, code and quoted text are literal and copy/paste-safe;
-- no stale screenshot/output is being treated as current evidence;
-- no file, test, commit, API result, runtime result, tool execution or artifact is claimed without supporting evidence;
-- there are no contradictions, unsupported assumptions, invented results, placeholders or circular instructions;
-- no change has been made after the review. Any post-review edit invalidates the gate and requires a fresh review.
-
-Gate result must be recorded as `PROOFREAD_PASS` or `PROOFREAD_FAIL`. Anything other than `PROOFREAD_PASS` blocks Judge PASS.
+Judge cannot infer this gate from a high rubric score. It requires its own review evidence.
 
 ### Gate 2 — Whole-Team Completion Check
 
-Before Judge can pass a substantive task, Judge must ask the **entire certified Universal Team** whether the task is complete.
+Before Judge may pass a substantive task, Judge must ask the **whole current certified Universal Team** whether the task is complete.
 
-Operationally, the completion check is sent to every certified primary operator in the current canonical roster. Each primary operator is responsible for reviewing the task from its own discipline and all embedded specialties/aliases it represents.
+"Whole team" means **every certified primary operator in the current canonical roster at the time of review**. Each primary operator reviews the task from its own discipline and all embedded specialties/aliases it represents.
 
-Each reviewer returns exactly one state:
+Each primary operator must return exactly one state:
+
 - `COMPLETE`
 - `NOT_COMPLETE`
 - `UNKNOWN`
 - `NOT_APPLICABLE`
 
-Judge may proceed only when:
+Judge may pass this gate only when:
+
 - every certified primary operator has been asked;
+- every certified primary operator has responded;
 - every applicable response is `COMPLETE`;
 - no applicable response is `NOT_COMPLETE` or `UNKNOWN`;
-- any `NOT_APPLICABLE` response includes a brief reason.
+- each `NOT_APPLICABLE` response has a brief reason;
+- any material objection raised by a team member has been resolved and the affected reviewers have been asked again after the fix.
 
-Silence, missing responses, assumed agreement, or a partial mission-pod poll does **not** satisfy this gate.
+Silence, a missing response, assumed agreement, a partial mission-pod poll, or "nobody objected" does **not** satisfy the gate.
 
-### Gate 3 — Rubric test
+The completion-check record must include at minimum:
 
-Judge must score the completed work against the current Universal 1/10–11/10 grading rubric using direct evidence.
+- roster version or roster snapshot used;
+- number of certified primary operators;
+- number asked;
+- number responded;
+- counts of `COMPLETE`, `NOT_COMPLETE`, `UNKNOWN`, and `NOT_APPLICABLE`;
+- unresolved objections, if any.
 
-A score below **10/10** automatically blocks PASS.
+Any change to the underlying work after the whole-team check invalidates the affected completion opinions and requires the relevant team review again.
 
-A score of **10/10** satisfies this minimum-rubric gate but remains **FAIL / FINAL REWORK_REQUIRED** under the standing Universal Team standard.
+### Gate 3 — Judge grading-rubric test
 
-Only **11/10**, after Gates 1 and 2 also pass, may become `JUDGE_VERIFIED`.
+Judge must test the completed work against the current Universal **1/10–11/10 grading rubric** using direct evidence.
 
-### Mandatory order
+The pass threshold is now:
 
-For final acceptance, use this order:
+- **1/10 through 9/10 — FAIL / REWORK_REQUIRED**
+- **10/10 — PASS / JUDGE_VERIFIED**
+- **11/10 — PASS / JUDGE_VERIFIED / EXCEPTIONAL**
 
-`WORK -> TEST -> FINAL DRAFT -> PROOFREAD GATE -> WHOLE-TEAM COMPLETENESS CHECK -> JUDGE RUBRIC -> PASS/REWORK`
+This means the work must score **at least 10/10**.
 
-Judge is prohibited from scoring first and using the score to infer that the proofread or whole-team gates must have passed. Each gate requires its own evidence.
+This 2026-09-19 user-directed rule **supersedes the prior rule that only 11/10 could pass**. Historical 11-only records remain historical evidence and must not be silently rewritten.
 
-### Anti-self-certification rule
+Judge may not award 10/10 or 11/10 based on effort, confidence, an agent's self-report, code merely existing, a build merely launching, or an impressive-looking report. The score must trace to the exact request, acceptance criteria, evidence, tests, runtime/device observations where relevant, known defects, and unresolved risks.
 
-The person/agent that produced the final deliverable may not be the sole evidence source for any of these gates. Judge must rely on independent review and direct evidence where available.
+## Rubric
 
+### 1/10 — Catastrophic failure — FAIL
+The task is essentially not accomplished, unusable, fundamentally incorrect, fabricated, corrupted, unsafe to the project, or unrelated.
+
+### 2/10 — Severe failure — FAIL
+Only a small amount of relevant work exists. The core requirement is absent or broken and substantial replacement is required.
+
+### 3/10 — Major failure — FAIL
+The direction is recognizable, but major systems, requirements, evidence, or outputs are missing or wrong.
+
+### 4/10 — Weak / incomplete — FAIL
+Some useful work exists, but major gaps, defects, or unmet acceptance criteria remain.
+
+### 5/10 — Half-complete — FAIL
+Core work is partially functional but important integration, edge cases, testing, documentation, quality or verification remain unresolved.
+
+### 6/10 — Functional prototype — FAIL
+The main concept works in a limited form but remains prototype quality, fragile, placeholder-heavy, incompletely tested or insufficiently evidenced.
+
+### 7/10 — Good working draft — FAIL
+Most major requirements are present and generally work, but noticeable defects, missing refinement, reliability work, testing or polish remain.
+
+### 8/10 — Strong implementation — FAIL
+The task is substantially correct and useful, but at least one meaningful requirement, edge case, validation step, integration issue, usability problem or evidence gap remains.
+
+### 9/10 — Excellent but not complete — FAIL
+High-quality work with no major architectural failure, but identifiable defects, incomplete evidence, insufficient runtime verification, documentation gaps or request mismatch still remain.
+
+### 10/10 — Complete to the requested standard — PASS
+The task fully satisfies the user's request and Mission Contract. Mandatory requirements and acceptance criteria are met. Relevant tests and verification pass. Artifacts are usable. Integration is sound. No known material defect or blocker remains. Security, privacy, canon, policy and project rules are satisfied where applicable. Completion claims are supported by evidence. Gates 1 and 2 must also have passed.
+
+### 11/10 — Exceptional completion — PASS
+Everything required for 10/10 is satisfied, with additional demonstrable excellence beyond the ordinary requested standard, such as especially strong resilience, regression protection, polish, clarity, automation, or evidence quality. Judge must not inflate to 11/10 merely because the task passed.
+
+## Mandatory order
+
+Final acceptance uses this order:
+
+`WORK -> TEST -> FINAL VERSION -> PROOFREAD GATE -> WHOLE-TEAM COMPLETION CHECK -> JUDGE RUBRIC -> PASS OR REWORK`
+
+Judge may not reorder these steps by scoring first and assuming the other gates passed.
+
+## Anti-self-certification rule
+
+The person or agent that produced the work may not be the sole evidence source for final acceptance.
+
+For any material factual claim, use the strongest appropriate direct evidence available:
+
+- filesystem evidence for file existence;
+- Git output for Git state;
+- test-runner output for tests;
+- runtime/device observation for runtime/device claims;
+- provider output for provider/model inventory;
+- direct source inspection for source claims.
+
+Agent prose is supporting narrative, not authoritative execution evidence.
+
+## Rework behavior
+
+If any gate fails, Judge must return:
+
+- exact gate that failed;
+- rubric score if Gate 3 was reached;
+- PASS/FAIL state;
+- acceptance criteria passed;
+- acceptance criteria missing or failed;
+- evidence reviewed;
+- defects and unresolved risks;
+- exact corrections required;
+- responsible specialist or owner;
+- required retest/re-review;
+- next state: `REWORK_REQUIRED`.
+
+After correction:
+
+- rerun affected tests;
+- regenerate the final version if needed;
+- rerun the proofread gate;
+- rerun the whole-team completion check for any materially changed work;
+- rerun the rubric.
+
+## Five final questions
+
+Before PASS, Judge must answer **YES** to all five:
+
+1. Was the final version proofread after all edits and confirmed to be exactly what was intended to be sent?
+2. Was the whole certified team asked whether the task is complete, with all applicable reviewers returning COMPLETE?
+3. Did the work score at least 10/10 on the grading rubric?
+4. Does direct evidence support the important completion claims?
+5. Are there no known material unresolved defects, blockers or contradictions?
+
+Any **NO**, **UNKNOWN**, **ASSUMED**, **UNVERIFIED**, or missing answer blocks PASS.
+
+## State-machine rule
+
+```text
+WORK
+  |
+  v
+TEST
+  |
+  v
+FINAL_VERSION
+  |
+  v
+PROOFREAD_GATE
+  |-- FAIL --> REWORK_REQUIRED
+  |
+  v
+WHOLE_TEAM_COMPLETION_CHECK
+  |-- NOT_COMPLETE / UNKNOWN / MISSING --> REWORK_REQUIRED
+  |
+  v
+JUDGE_RUBRIC
+  |-- 1..9 --> REWORK_REQUIRED
+  |-- 10..11 --> JUDGE_VERIFIED
+                      |
+                      v
+                   ARCHIVIST
+                      |
+                      v
+                   COMPLETE
+```
+
+## User authority
+
+The user remains the final authority over goals and may explicitly change, cancel or override a mission or this standard. No team member may silently bypass these gates.
+
+## Historical note
+
+The 2026-09-17 standard required 11/10 for PASS. On 2026-09-19 the user explicitly refined Judge so that PASS requires:
+
+1. final proofread correctness;
+2. whole-team confirmation of completeness;
+3. grading-rubric score of **at least 10/10**.
+
+The newer rule is canonical.
