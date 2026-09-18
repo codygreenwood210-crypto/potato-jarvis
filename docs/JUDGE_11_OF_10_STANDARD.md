@@ -148,3 +148,65 @@ JUDGE_REVIEW
 ```
 
 This standard is intended to be implemented as a hard workflow rule in Potato Network OS rather than only as prompt wording.
+
+## Mandatory pre-pass gates — effective 2026-09-18
+
+Judge may not award PASS or JUDGE_VERIFIED unless **all** of the following gates have completed successfully. These are necessary conditions in addition to the existing 11/10 rule.
+
+### Gate 1 — Final proofread / response-integrity review
+
+Before Judge can pass a user-facing deliverable, the complete final response must be independently reread after all edits are finished.
+
+The reviewer must verify that:
+- the response is exactly what was intended to be sent to the user;
+- every part of the user's request is answered;
+- commands, paths, filenames, branch names, IDs, links, code and quoted text are literal and copy/paste-safe;
+- no stale screenshot/output is being treated as current evidence;
+- no file, test, commit, API result, runtime result, tool execution or artifact is claimed without supporting evidence;
+- there are no contradictions, unsupported assumptions, invented results, placeholders or circular instructions;
+- no change has been made after the review. Any post-review edit invalidates the gate and requires a fresh review.
+
+Gate result must be recorded as `PROOFREAD_PASS` or `PROOFREAD_FAIL`. Anything other than `PROOFREAD_PASS` blocks Judge PASS.
+
+### Gate 2 — Whole-Team Completion Check
+
+Before Judge can pass a substantive task, Judge must ask the **entire certified Universal Team** whether the task is complete.
+
+Operationally, the completion check is sent to every certified primary operator in the current canonical roster. Each primary operator is responsible for reviewing the task from its own discipline and all embedded specialties/aliases it represents.
+
+Each reviewer returns exactly one state:
+- `COMPLETE`
+- `NOT_COMPLETE`
+- `UNKNOWN`
+- `NOT_APPLICABLE`
+
+Judge may proceed only when:
+- every certified primary operator has been asked;
+- every applicable response is `COMPLETE`;
+- no applicable response is `NOT_COMPLETE` or `UNKNOWN`;
+- any `NOT_APPLICABLE` response includes a brief reason.
+
+Silence, missing responses, assumed agreement, or a partial mission-pod poll does **not** satisfy this gate.
+
+### Gate 3 — Rubric test
+
+Judge must score the completed work against the current Universal 1/10–11/10 grading rubric using direct evidence.
+
+A score below **10/10** automatically blocks PASS.
+
+A score of **10/10** satisfies this minimum-rubric gate but remains **FAIL / FINAL REWORK_REQUIRED** under the standing Universal Team standard.
+
+Only **11/10**, after Gates 1 and 2 also pass, may become `JUDGE_VERIFIED`.
+
+### Mandatory order
+
+For final acceptance, use this order:
+
+`WORK -> TEST -> FINAL DRAFT -> PROOFREAD GATE -> WHOLE-TEAM COMPLETENESS CHECK -> JUDGE RUBRIC -> PASS/REWORK`
+
+Judge is prohibited from scoring first and using the score to infer that the proofread or whole-team gates must have passed. Each gate requires its own evidence.
+
+### Anti-self-certification rule
+
+The person/agent that produced the final deliverable may not be the sole evidence source for any of these gates. Judge must rely on independent review and direct evidence where available.
+
