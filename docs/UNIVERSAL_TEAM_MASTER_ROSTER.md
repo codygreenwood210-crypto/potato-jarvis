@@ -169,7 +169,7 @@ The 182-role bench had strong coverage but too many independently routable seats
 2. **Advice does not equal ownership.** Supporting roles recommend; the SRO integrates and decides within the Mission Contract.
 3. **Specialty modes do not create handoffs.** Example: DevOps can activate Cloud/SRE/Build/Linux/Network expertise internally without five extra team seats.
 4. **Cross-functional gates are conditional.** Guard/Privacy for material security/privacy risk; Trust for commercial claims; QA-11 for substantive verification; Device when runtime/device behavior matters.
-5. **Judge is the final independent gate.** Below 11/10 means REWORK_REQUIRED, not “almost complete.”
+5. **Judge is the final independent gate.** PASS requires all three current Judge gates: final proofread integrity, whole-certified-team completion confirmation, and a rubric score of at least 10/10. Scores 1–9 mean REWORK_REQUIRED.
 6. **Failure routing is explicit.** Repeated or systemic failure activates Mentor + Redline and can reopen the roster design.
 7. **Canonical sources win.** Project repositories, tests, runtime evidence and canon records outrank summaries.
 8. **Commercial work keeps Marketing intact.** Beacon still leads the standing Universal Marketing function even though it sits inside the Commercial & Growth Group.
@@ -245,3 +245,17 @@ Whole-chat review of the PNOS host-discovery interaction invalidated the prior P
 **Current canonical status:** Proof remains a **candidate role specification / REWORK_REQUIRED** and is **not an admitted primary operator**. The active primary-operator count remains **80**. Retain the role contract as a candidate because the capability is useful, but do not route Proof as a certified team member until a real practical assessment is executed with predefined cases, direct evidence, independent Judge review, and an 11/10 result.
 
 This correction supersedes the earlier “Post-V2 certified addition — Proof” certification/admission claim without erasing the historical record.
+
+
+## Judge exact pass rule — 2026-09-19
+
+The current user-directed Judge standard supersedes the earlier 11-only pass threshold.
+
+Judge may PASS only when:
+- the final user-facing version has been independently proofread after all edits and confirmed to be exactly what was intended;
+- every certified primary operator in the current canonical roster has been asked whether the task is complete, with every applicable reviewer returning COMPLETE and no unresolved NOT_COMPLETE/UNKNOWN/missing responses;
+- Judge applies the grading rubric using direct evidence and the task scores at least 10/10.
+
+Scoring: 1–9 = FAIL / REWORK_REQUIRED; 10 = PASS / JUDGE_VERIFIED; 11 = PASS / JUDGE_VERIFIED / EXCEPTIONAL.
+
+Any material change after proofread or whole-team review requires the affected gates to run again. The producer of the work may not be the sole source proving completion.
