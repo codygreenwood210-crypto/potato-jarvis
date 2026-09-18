@@ -142,3 +142,33 @@ Practical training used recent PNOS response failures as adversarial cases: acci
 - Final Judge result: **11/10 PASS / JUDGE_VERIFIED** for team membership and role definition.
 
 This is operational role training/certification, not underlying model-weight retraining, external accreditation, or a guarantee that every future response will be error-free.
+
+
+## PNOS recovery handoff — 2026-09-18
+
+Potato Network OS (PNOS) is an active local-first multi-AI collaboration OS being built on Windows at `C:\Users\codyg\OneDrive\Desktop\PotatoNetworkOS`. The intended stack remains Python/FastAPI, SQLite, React/TypeScript/Vite, Ollama/local models, Git, and local/free tooling. Paid/cloud fallback is not allowed unless the user explicitly enables it.
+
+The current **Universal Capability Discovery / real-host verification milestone is REWORK_REQUIRED**. During the originating interaction, OpenCode using a small local model repeatedly produced plans, fixture-like reports, fake-looking inventories, Unix commands on Windows, invented endpoints, and claims that files/evidence existed when the actual Windows host did not confirm them.
+
+Direct user-observed Windows PowerShell established:
+- `Get-Location` -> `C:\Users\codyg\OneDrive\Desktop\PotatoNetworkOS`;
+- `.\scripts` existed but was empty;
+- `.\artifacts` contained only `development-mission.png` and `pnos-browser.png`;
+- the claimed real-host evidence JSON did not exist.
+
+Permanent evidence rule: **ChatGPT, the coding-agent/model runtime, and the user's actual host OS/filesystem/repository are separate evidence domains. Agent prose is not host-execution evidence.** Host claims require direct host evidence such as filesystem inspection, Git output, tests, process/runtime observation, or equivalent appropriate proof.
+
+Current Judge state for the capability-discovery recovery: **3/10 FAIL / REWORK_REQUIRED**. Before any more OpenCode edits, use a separate Windows PowerShell/Windows Terminal, change to the PNOS workspace, and capture:
+`git status`
+`git branch --show-current`
+`git log --oneline -10`
+`git diff --stat`
+`git diff`
+
+Those commands are the next source-of-truth checkpoint for deciding what OpenCode actually changed and what should be kept or reverted.
+
+### Proof status correction
+
+The earlier section certifying **Proof — Final Response Integrity Reviewer** at 11/10 is superseded. Whole-chat review found the admission lacked genuinely independent practical evidence and Proof did not prevent the same communication failures it was intended to catch. Proof is therefore a **candidate / REWORK_REQUIRED**, not a certified primary operator. The active V2 primary-operator count remains **80** until Proof or another new role earns admission through a real practical assessment with direct evidence and Judge 11/10.
+
+See the Google Drive continuity records `UTM-2026-016`, `LESSON-2026-014`, and `HANDOFF-2026-013` for the matching cross-project closeout.
