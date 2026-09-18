@@ -65,3 +65,8 @@ Owns durable project memory. The Archivist records externally meaningful work, d
 `Scout -> relevant Specialists -> Judge -> Archivist -> next chat/session`
 
 A single chatbot may perform several roles in one session, but its records must distinguish investigation, implementation, verification and archival claims so role boundaries remain auditable.
+
+
+## Cross-project Universal Team reference
+
+For Universal Team / Money-Making Team role selection beyond POTATO-specific engineering, read `docs/UNIVERSAL_TEAM_MASTER_ROSTER.md` on this branch. It is the GitHub mirror of the Google Drive document **Universal Team — Master Roster & Certification Register**. The detailed master roster contains 182 named operational roles and the internal 11/10 admission/training standard. This reference does not replace or redefine POTATO's project-specific engineering roster or technical source of truth.
