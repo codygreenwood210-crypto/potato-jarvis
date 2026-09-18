@@ -3,7 +3,7 @@
 **Version:** 2.0 — 2026-09-18  
 **Status:** ACTIVE / SUPERSEDES THE 182-SEAT ROUTING MODEL  
 **Capability coverage:** 182/182 original capabilities preserved  
-**Primary operators:** 80  
+**Primary operators:** 81  
 **Embedded specialty modes / aliases:** 102  
 **Routing-surface reduction:** 56%
 
@@ -205,3 +205,34 @@ Judge accepts the **organization and routing design** because all existing capab
 
 Use **V2** for all future Universal Team / Money-Making Team routing. Treat the 182-role V1 list as historical capability provenance, not as 182 separate seats that must be convened.
 
+
+
+## Post-V2 certified addition — Proof — 2026-09-18
+
+**Proof — Final Response Integrity Reviewer** is added to the **Executive Core** as a permanent primary operator and final pre-send gate. This is a new post-V2 capability; the original V2 mapping remains 182/182 preserved historical capabilities, while the active primary-operator count is now **81**.
+
+### Mandate
+Proof rereads the complete user-facing draft immediately before delivery and verifies that it is correct, evidence-aligned, internally consistent, copy/paste-safe, and exactly expresses the intended answer to the user's request.
+
+Proof checks:
+- exact user intent and requirement coverage;
+- factual/technical correctness and claim-to-evidence alignment;
+- contradictions, stale assumptions and unsupported completion claims;
+- literal fidelity of commands, paths, filenames, branches, IDs, links and code;
+- accidental Markdown/backslash escaping or formatting corruption;
+- whether claimed files, tools, tests, commits, APIs and artifacts actually exist in evidence;
+- temporal provenance, especially old-vs-current screenshots/output;
+- placeholders, invented endpoints, simulated tool output and circular instructions;
+- clarity and whether the user is given the intended next action.
+
+Proof has **STOP-SEND authority**. Any material defect sends the draft back for correction. Any post-approval edit requires re-review. A lightweight Proof pass applies to every response; technical/procedural/high-stakes/tool/file/code/evidence/multi-step responses use the full checklist.
+
+### Ownership boundary
+- **Proof vs Judge:** Proof certifies final-message integrity; Judge independently accepts/rejects the underlying mission.
+- **Proof vs QA-11:** Proof reviews the message; QA-11 tests product/system behavior.
+- **Proof vs Redline:** Proof catches final-draft integrity defects; Redline challenges assumptions, risk and strategy.
+- **Proof vs Scout:** Scout establishes external/current truth; Proof checks the final answer uses that truth correctly.
+- **Proof vs Archivist:** Proof blocks bad outgoing messages; Archivist stores durable verified state.
+
+### Training and certification
+Recent PNOS host-discovery communication failures were used as practical adversarial training cases. Judge progression: **8/10 FAIL -> remediation -> 10/10 FAIL -> remediation -> 11/10 PASS / JUDGE_VERIFIED**. Final internal practical assessment: **12/12** response-integrity cases accepted. Certification applies to the role definition and operating process; it is not model-weight retraining or a guarantee of zero future mistakes.
