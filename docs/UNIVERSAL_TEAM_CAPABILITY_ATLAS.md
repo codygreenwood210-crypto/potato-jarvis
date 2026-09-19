@@ -109,3 +109,8 @@ Promote only from representative benchmark evidence. Include edge cases, adversa
 Downgrade stale or contradicted mastery claims. Revalidate after meaningful model, tool, API, standard, or domain changes.
 
 **Standing principle:** NO TITLE-BASED EXPERTISE. EARN IT. PROVE IT. KEEP IT CURRENT.
+
+
+## Core benchmark suite
+
+Shared baseline: `docs/UNIVERSAL_TEAM_CORE_EXCELLENCE_BENCHMARKS.md`. Every primary operator must satisfy relevant core tests before Level 4/5 mastery claims; Level 5 additionally requires domain-specific adversarial benchmarks and sustained independently verified performance.
