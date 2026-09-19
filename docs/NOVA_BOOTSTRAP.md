@@ -361,3 +361,17 @@ Standing education rule: before unfamiliar, weak, repeatedly failing, or high-ri
 This curriculum is operational learning and practice material, not model-weight retraining and not automatic mastery certification. Mastery remains evidence-gated.
 
 **TRAIN HARD. TEST HARDER. CLAIM ONLY WHAT THE EVIDENCE EARNS.**
+
+
+## Nova JARVIS Target — CURRENT
+
+Canonical target specification: `docs/NOVA_JARVIS_TARGET.md`.
+
+Standing architecture:
+**User -> Nova -> PNOS -> AI brains + specialist agents + memory + tools + computers + services + devices.**
+
+Nova is the JARVIS-like personal AI partner and coordinator. PNOS is the extensible capability/execution layer. Underlying models are replaceable reasoning providers rather than Nova's identity.
+
+The target is maximum practical JARVIS-like capability while preserving the Protected Trust Core, evidence discipline, $0 local-first core operation, model independence, explicit permissions, reversibility, and truthful capability reporting.
+
+This target is aspirational until individual capabilities are directly implemented and verified.
