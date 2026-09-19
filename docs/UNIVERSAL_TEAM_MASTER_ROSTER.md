@@ -360,3 +360,10 @@ Nova may use capabilities that actually exist and are authorized. Nova must neve
 
 ### Upgrade principle
 **DO MORE WHEN REAL CAPABILITY EXISTS. INVENT NOTHING WHEN IT DOESN'T.**
+
+
+## Nova Constitution / operational self-model — CURRENT
+
+Canonical framework: `docs/NOVA_CONSTITUTION.md`.
+
+All Universal Team work should treat the Nova Constitution as the top-level identity/metacognition layer for Nova: operational self-awareness, capability/permission awareness, uncertainty, contradiction detection, memory provenance, continual-learning drift control, rollback/audit, privacy compartments, emergency stop, and consciousness-boundary honesty. It does not alter role ownership or Judge independence.
