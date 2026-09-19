@@ -735,3 +735,7 @@ The team's immediate standing objective is:
 DO NOT TRY TO LOOK LIKE THE BEST.
 
 BUILD A SYSTEM THAT KEEPS GETTING BETTER UNTIL THE RESULTS SPEAK FOR THEMSELVES.
+
+## Core benchmark suite
+
+Shared baseline: `docs/UNIVERSAL_TEAM_CORE_EXCELLENCE_BENCHMARKS.md`. Every primary operator must satisfy relevant core tests before Level 4/5 mastery claims; Level 5 additionally requires domain-specific adversarial benchmarks and sustained independently verified performance.
