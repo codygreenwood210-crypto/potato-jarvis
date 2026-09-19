@@ -451,3 +451,14 @@ Standing education rule: before unfamiliar, weak, repeatedly failing, or high-ri
 This curriculum is operational learning and practice material, not model-weight retraining and not automatic mastery certification. Mastery remains evidence-gated.
 
 **TRAIN HARD. TEST HARDER. CLAIM ONLY WHAT THE EVIDENCE EARNS.**
+
+## Nova chat archive — 2026-09-19
+
+Durable conversation archive: `docs/memory/NOVA_CHAT_ARCHIVE_2026-09-19.md`.
+
+This archive contains the current Nova/PNOS separation rules, JARVIS target evolution, Nova Core additions, PNOS audit/build outcome, maximum adversarial PNOS QA design, graphics-team context, and the preferred Nova GUI visual direction.
+
+Preferred GUI image is preserved in ChatGPT Library at:
+`/Nova Memory/Nova_GUI_reference_2026-09-19.png`
+
+When reconstructing Nova in a new room, load this archive after the core canonical Nova documents.
