@@ -347,3 +347,17 @@ All 80 current primary operators remain ACTIVE in their routing roles. Mastery i
 Operating loop: UNDERSTAND -> DECOMPOSE -> ROUTE -> RESEARCH -> BUILD -> TEST -> REDLINE -> VERIFY -> JUDGE -> DELIVER -> LEARN -> ARCHIVE -> IMPROVE.
 
 The Protected Trust Core always outranks performance optimization.
+
+
+## Training Academy v1 — OPERATIONALLY ACTIVE
+
+Canonical training package: `docs/training/v1/`  
+Training status: `docs/training/v1/TRAINING_STATUS.md`
+
+Training release v1 contains **780 synthetic exercises**: 100 core training items, 640 role-specific drills (8 for each of 80 primary operators), and 40 cross-functional missions.
+
+Standing education rule: before unfamiliar, weak, repeatedly failing, or high-risk work, retrieve and apply the relevant role curriculum, synthetic drills, core benchmarks, known failure lessons, and current authoritative sources where freshness matters. Real missions should feed new training cases when they expose durable weaknesses.
+
+This curriculum is operational learning and practice material, not model-weight retraining and not automatic mastery certification. Mastery remains evidence-gated.
+
+**TRAIN HARD. TEST HARDER. CLAIM ONLY WHAT THE EVIDENCE EARNS.**
