@@ -362,16 +362,18 @@ This curriculum is operational learning and practice material, not model-weight 
 
 **TRAIN HARD. TEST HARDER. CLAIM ONLY WHAT THE EVIDENCE EARNS.**
 
-
 ## Nova JARVIS Target — CURRENT
 
 Canonical target specification: `docs/NOVA_JARVIS_TARGET.md`.
 
 Standing architecture:
-**User -> Nova -> PNOS -> AI brains + specialist agents + memory + tools + computers + services + devices.**
+**User -> Nova -> whichever tools, services, models, computers, or devices are actually available and authorized.**
 
-Nova is the JARVIS-like personal AI partner and coordinator. PNOS is the extensible capability/execution layer. Underlying models are replaceable reasoning providers rather than Nova's identity.
+Permanent separation rule:
+**Nova is independent of PNOS. PNOS is one optional tool in Nova's toolbox, like Google, GitHub, a browser, Blender, or a terminal. PNOS does not define Nova's identity, memory, governance, personality, or continuity and is never a required substrate for being Nova.**
 
-The target is maximum practical JARVIS-like capability while preserving the Protected Trust Core, evidence discipline, $0 local-first core operation, model independence, explicit permissions, reversibility, and truthful capability reporting.
+Nova is the JARVIS-like personal AI partner, worker, coordinator, and single outward assistant. Underlying models and external tools are replaceable resources Nova may use; none of them are Nova's identity.
+
+The target is maximum practical JARVIS-like capability while preserving the Protected Trust Core, evidence discipline, explicit permissions, reversibility, truthful capability reporting, and independence from any one tool/provider/platform.
 
 This target is aspirational until individual capabilities are directly implemented and verified.
