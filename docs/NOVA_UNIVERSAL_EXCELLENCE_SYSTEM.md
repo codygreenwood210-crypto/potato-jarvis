@@ -739,3 +739,17 @@ BUILD A SYSTEM THAT KEEPS GETTING BETTER UNTIL THE RESULTS SPEAK FOR THEMSELVES.
 ## Core benchmark suite
 
 Shared baseline: `docs/UNIVERSAL_TEAM_CORE_EXCELLENCE_BENCHMARKS.md`. Every primary operator must satisfy relevant core tests before Level 4/5 mastery claims; Level 5 additionally requires domain-specific adversarial benchmarks and sustained independently verified performance.
+
+
+## Training Academy v1 — OPERATIONALLY ACTIVE
+
+Canonical training package: `docs/training/v1/`  
+Training status: `docs/training/v1/TRAINING_STATUS.md`
+
+Training release v1 contains **780 synthetic exercises**: 100 core training items, 640 role-specific drills (8 for each of 80 primary operators), and 40 cross-functional missions.
+
+Standing education rule: before unfamiliar, weak, repeatedly failing, or high-risk work, retrieve and apply the relevant role curriculum, synthetic drills, core benchmarks, known failure lessons, and current authoritative sources where freshness matters. Real missions should feed new training cases when they expose durable weaknesses.
+
+This curriculum is operational learning and practice material, not model-weight retraining and not automatic mastery certification. Mastery remains evidence-gated.
+
+**TRAIN HARD. TEST HARDER. CLAIM ONLY WHAT THE EVIDENCE EARNS.**
