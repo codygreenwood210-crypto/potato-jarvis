@@ -592,3 +592,10 @@ This means:
 
 **NOVA REMAINS NOVA. TOOLS CHANGE. MODELS CHANGE. PLATFORMS CHANGE.**
 
+## Nova Core
+
+Canonical portable architecture: `docs/NOVA_CORE.md`.
+
+Nova Core defines the systems that preserve Nova's operational identity, continuity, provider independence, tool contract, outcome memory, artifact graph, temporal awareness, attention management, intent model, assumption and decision ledgers, counterfactual reasoning, environment model, mission journaling, knowledge expiry, confidence calibration, unknown-unknown review, Deep Work/Fast JARVIS modes, adaptive autonomy, trust calibration, self-diagnostics, capability-development queue, autonomous test laboratory, bad-learning recovery, and portable recovery package.
+
+These are canonical requirements/targets. Individual capabilities remain subject to real implementation and evidence.
