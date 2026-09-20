@@ -195,3 +195,29 @@ Windows DPAPI initialization/recovery should additionally be tested on the user'
 ## Permanent security rule
 
 **Nova's private durable memories are encrypted at rest when the vault path is active. The ciphertext may be stored or synchronized; the master key is kept outside those stores. Plaintext is released only to an authorized runtime for the minimum necessary time. The user retains recovery authority.**
+
+## CI verification — 2026-09-20
+
+GitHub Actions workflow: `.github/workflows/verify-nova-memory-vault.yml`
+
+Verified run:
+- run id: `35496031338`
+- head commit: `21e7778c6fae918565f9d36732fcc2329e8d78e0`
+- conclusion: **success**
+
+Successful jobs:
+- Portable crypto tests — Ubuntu
+- Portable crypto tests — Windows
+- Windows DPAPI smoke test
+
+The CI run verified:
+- Python compilation of the vault module and CLI;
+- vault unit/security tests;
+- AES-GCM round trips;
+- wrong-key failure;
+- tamper detection;
+- recovery-bundle behavior;
+- Windows DPAPI master-key wrapping/unwrapping;
+- DPAPI-protected key used for a real encrypt/decrypt round trip.
+
+This verifies the implementation itself on clean GitHub-hosted Windows/Linux runners. It does **not** prove the user's own Windows account has initialized its local master key or that existing plaintext memories have been migrated.
