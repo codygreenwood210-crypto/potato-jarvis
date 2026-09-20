@@ -102,3 +102,11 @@ All 80 current primary operators have an assigned eight-drill role curriculum. T
 Training material is operationally active. Nova, Mentor, Atlas, QA-11, Redline, Judge, and domain specialists should retrieve relevant drills and lessons during real work, especially for unfamiliar, weak, repeatedly failing, or high-risk tasks.
 
 Training completion does not equal benchmark mastery. Promotion remains evidence-gated.
+
+## Candidate education extension — Bug Hunter
+
+| Operator | Curriculum | Assigned drills | Practice status | Mastery impact |
+|---|---|---:|---|---|
+| Bug Hunter | CANDIDATE / LOADED | 64 + 24 certification benchmarks | PRACTICAL ASSESSMENT PENDING | No roster admission until Judge >=10/10 with direct evidence |
+
+This candidate extension does not change the current certified primary-operator count.
