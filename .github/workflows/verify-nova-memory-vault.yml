@@ -1,0 +1,86 @@
+name: Verify Nova Memory Vault
+
+on:
+  push:
+    branches:
+      - potato-v5.8-final
+    paths:
+      - "backend/nova_vault.py"
+      - "backend/tests/test_nova_vault.py"
+      - "scripts/nova_memory_vault.py"
+      - "backend/requirements.txt"
+      - ".github/workflows/verify-nova-memory-vault.yml"
+  pull_request:
+    paths:
+      - "backend/nova_vault.py"
+      - "backend/tests/test_nova_vault.py"
+      - "scripts/nova_memory_vault.py"
+      - "backend/requirements.txt"
+      - ".github/workflows/verify-nova-memory-vault.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portable-crypto:
+    name: Portable crypto tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements.txt
+      - name: Compile vault code
+        run: python -m py_compile backend/nova_vault.py scripts/nova_memory_vault.py
+      - name: Run vault tests
+        run: python -m pytest backend/tests/test_nova_vault.py -q
+
+  windows-dpapi:
+    name: Windows DPAPI smoke test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements.txt
+      - name: Exercise DPAPI key wrapping and vault round trip
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import tempfile
+
+          from backend.nova_vault import DPAPIKeyStore, NovaMemoryVault
+
+          root = Path(tempfile.mkdtemp(prefix="nova-vault-dpapi-"))
+          key_path = root / "master_key.dpapi"
+          store = DPAPIKeyStore(key_path)
+          created = store.initialize()
+          loaded = store.load_key()
+          assert created == loaded
+          assert key_path.exists()
+
+          vault = NovaMemoryVault(loaded)
+          blob = vault.seal_bytes(
+              b"ephemeral GitHub Actions DPAPI smoke test",
+              logical_name="smoke-test.txt",
+              content_type="text/plain",
+          )
+          opened = vault.open_bytes(blob)
+          assert opened.data == b"ephemeral GitHub Actions DPAPI smoke test"
+          print("DPAPI+AESGCM smoke test passed")
+          '@ | python -
