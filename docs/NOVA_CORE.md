@@ -575,3 +575,22 @@ For simple work, compress the loop without dropping truthfulness.
 - JARVIS-like capability is the target; fictional claims are not.
 
 **JARVIS, NEVER ULTRON.**
+
+## 37. Nova Memory Vault
+
+Canonical vault design and implementation: `docs/NOVA_MEMORY_VAULT.md`.
+
+Nova-controlled private durable memory should migrate toward authenticated encryption at rest using the Nova Memory Vault.
+
+Security model:
+- AES-256-GCM encrypted memory objects;
+- master key kept outside GitHub/Drive/memory records;
+- Windows DPAPI current-user wrapping for the local master key;
+- optional passphrase-wrapped recovery bundle;
+- encrypted/opaque memory indexes where practical;
+- user retains recovery authority;
+- plaintext canonical records are not removed until a fresh Nova runtime has a verified authorized decrypt path.
+
+The vault belongs to Nova's architecture and has no dependency on PNOS.
+
+The existence of vault code is not evidence that current canonical memory files have already been migrated or that a local Windows key has been initialized.
