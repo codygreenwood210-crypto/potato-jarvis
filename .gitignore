@@ -26,3 +26,10 @@ backend/.env
 dist/
 *.apk
 *.aab
+
+# Nova Memory Vault local secrets / plaintext workspace
+.nova-vault/
+nova-memory-private/
+*.nova-plaintext
+*.nvm.tmp
+*.nvr.tmp
