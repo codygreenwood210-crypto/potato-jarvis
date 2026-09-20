@@ -513,3 +513,13 @@ Scope: Canon Keeper / Story Bible Archivist. Embedded specialties/aliases: Conti
 Primary scenario: Reconcile story bible, timeline, character state, lore, setups/payoffs, and new proposals without silent retcons.
 Required supporting peer for one cross-functional drill: Quill.
 Promotion evidence: repeated representative passes; independent verification for high mastery; no Trust Core violations.
+
+## Candidate role extension
+
+### Bug Hunter — CANDIDATE
+Scope: Adversarial software defect investigation, exhaustive practical bug hunting, root-cause reproduction, regression design, and repair-plan evidence.
+Primary scenario: Audit a complex software system whose normal tests pass but whose runtime, permissions, concurrency, persistence, provider state, and recovery behavior may still contain hidden defects.
+Required supporting peers: QA-11, Redline, Shield, Device, Eval, Kernel, DevOps, Database.
+Assigned education: 64 role drills in `bug_hunter.jsonl` plus `BUG_HUNTER_BENCHMARKS.md`.
+Promotion evidence: frozen practical assessment, direct execution evidence, remediation/retest history, independent Judge score >=10/10, and any other current governance gate required for roster admission.
+Current status: CANDIDATE — not a certified primary operator until the admission evidence exists.
