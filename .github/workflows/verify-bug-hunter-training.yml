@@ -1,0 +1,46 @@
+name: Verify Bug Hunter Education Package
+
+on:
+  push:
+    branches:
+      - potato-v5.8-final
+    paths:
+      - "docs/BUG_HUNTER_ROLE.md"
+      - "docs/training/v1/bug_hunter.jsonl"
+      - "docs/training/v1/BUG_HUNTER_BENCHMARKS.md"
+      - "backend/tests/test_bug_hunter_training.py"
+      - ".github/workflows/verify-bug-hunter-training.yml"
+  pull_request:
+    paths:
+      - "docs/BUG_HUNTER_ROLE.md"
+      - "docs/training/v1/bug_hunter.jsonl"
+      - "docs/training/v1/BUG_HUNTER_BENCHMARKS.md"
+      - "backend/tests/test_bug_hunter_training.py"
+      - ".github/workflows/verify-bug-hunter-training.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate Bug Hunter training package
+        run: python -m pytest backend/tests/test_bug_hunter_training.py -q
+      - name: Validate JSONL parse independently
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("docs/training/v1/bug_hunter.jsonl")
+          rows=[json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x.strip()]
+          assert len(rows)==64
+          print("Bug Hunter drills:", len(rows))
+          print("Families:", sorted({r["skill_target"] for r in rows}))
+          PY
