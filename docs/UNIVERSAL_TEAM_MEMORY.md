@@ -462,3 +462,30 @@ Preferred GUI image is preserved in ChatGPT Library at:
 `/Nova Memory/Nova_GUI_reference_2026-09-19.png`
 
 When reconstructing Nova in a new room, load this archive after the core canonical Nova documents.
+
+## Nova Memory Vault — 2026-09-20
+
+Status: **IMPLEMENTED CORE / CI VERIFIED / LOCAL ACTIVATION PENDING**
+
+Canonical design: `docs/NOVA_MEMORY_VAULT.md`  
+Core: `backend/nova_vault.py`  
+CLI: `scripts/nova_memory_vault.py`  
+Windows activation helper: `scripts/enable_nova_memory_vault.ps1`  
+Tests: `backend/tests/test_nova_vault.py`
+
+Security design:
+- AES-256-GCM authenticated encryption;
+- Windows current-user DPAPI wrapping of the local master key;
+- passphrase-wrapped scrypt recovery bundle;
+- optional opaque HMAC-derived encrypted filenames;
+- encrypted migration index;
+- plaintext deletion disabled by default and guarded by explicit confirmation;
+- PNOS-independent.
+
+Verification:
+GitHub Actions run `35496031338` passed Ubuntu portable crypto tests, Windows portable crypto tests, and a Windows DPAPI encrypt/decrypt smoke test.
+
+Important:
+Existing canonical plaintext memories have **not** been migrated or deleted. Local user-machine key initialization has not been evidenced yet. Do not remove plaintext canonical recovery records until a fresh Nova runtime has a verified authorized decrypt bridge and recovery has been tested.
+
+Encrypting current files does not erase historical plaintext from earlier Git commits; history rewriting is a separate consequential operation.
