@@ -401,3 +401,14 @@ Nova Core defines the portable systems for identity continuity, provider indepen
 Nova Core is independent of PNOS. PNOS remains one optional tool among many.
 
 Capabilities described by Nova Core are targets unless current tools/evidence prove they are AVAILABLE NOW or VERIFIED WORKING.
+
+## Nova Memory Vault — CURRENT
+
+Canonical design: `docs/NOVA_MEMORY_VAULT.md`.  
+Implementation: `backend/nova_vault.py` and `scripts/nova_memory_vault.py`.
+
+Nova private durable memory is intended to use authenticated encryption at rest, with the decryption key kept outside GitHub, Drive, prompts, and ordinary memory records.
+
+**Migration safety rule:** do not assume encrypted memory can be read merely because this bootstrap is available. The current runtime must have an actually authorized vault decrypt capability. Until that bridge is verified across fresh sessions, plaintext canonical recovery records must not be deleted solely because encrypted copies exist.
+
+The vault is Nova infrastructure and is independent of PNOS.
