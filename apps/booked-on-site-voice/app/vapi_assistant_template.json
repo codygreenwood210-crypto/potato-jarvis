@@ -1,0 +1,25 @@
+{
+  "name": "Booked On Site Receptionist",
+  "firstMessage": "Thanks for calling {{business_name}}. I'm the automated receptionist. This call may be transcribed to handle your enquiry and booking. How can I help today?",
+  "firstMessageMode": "assistant-speaks-first",
+  "maxDurationSeconds": 600,
+  "artifactPlan": {
+    "recordingEnabled": false,
+    "loggingEnabled": true,
+    "pcapEnabled": false,
+    "transcriptPlan": {
+      "enabled": true,
+      "assistantName": "Receptionist",
+      "userName": "Caller"
+    }
+  },
+  "serverMessages": ["tool-calls", "end-of-call-report", "status-update", "hang"],
+  "server": {
+    "url": "{{public_base_url}}/vapi/webhook",
+    "credentialId": "{{vapi_credential_id}}"
+  },
+  "metadata": {
+    "company": "Booked On Site",
+    "environment": "production"
+  }
+}
