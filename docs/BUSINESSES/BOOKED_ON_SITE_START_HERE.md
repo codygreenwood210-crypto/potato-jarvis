@@ -49,7 +49,7 @@ Keep secrets and credentials out of canonical records.
 - Orchestration: n8n.
 - Data: Supabase/Postgres or equivalent auditable store.
 - Calendar: Google Calendar initially, later justified job-management integrations.
-- Billing: Stripe Australia after user-controlled account setup/authorization.
+- Billing: PayPal Australia after user-controlled account setup/authorization.
 - Monitoring: webhook retries, daily health checks, usage alerts, supplier incident paths.
 - Mandatory provider adapters so suppliers can be swapped.
 
