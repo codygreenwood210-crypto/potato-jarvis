@@ -407,3 +407,21 @@ Standing education rule: before unfamiliar, weak, repeatedly failing, or high-ri
 This curriculum is operational learning and practice material, not model-weight retraining and not automatic mastery certification. Mastery remains evidence-gated.
 
 **TRAIN HARD. TEST HARDER. CLAIM ONLY WHAT THE EVIDENCE EARNS.**
+
+## Functional agent runtime — 2026-09-22
+
+The 80 currently certified primary operators are now represented as executable bounded specialist agents in `backend/universal_agents.py` and integrated with Nova orchestration in `backend/main.py`.
+
+Canonical runtime design: `docs/NOVA_UNIVERSAL_AGENT_RUNTIME.md`.
+
+Runtime guarantees:
+- Nova is the manager/controller and single outward voice, not an additional team seat.
+- Each certified primary operator has a runtime identity, department, role prompt, aliases/specialties and routing signals.
+- Specialists can be invoked individually or combined into bounded mission pods.
+- Nova selects/receives a Single Responsible Owner and synthesizes specialist outputs.
+- Specialists do not independently execute tools, approve actions, escalate permissions or mutate persistent state; authorized actions remain behind the application security gateway.
+- Judge remains independent and is excluded from automatic implementation ownership.
+- Bug Hunter and Proof remain candidate roles and are not promoted into certified routing by this implementation.
+
+Implementation of a runtime agent does not itself upgrade mastery or certification claims; evidence-gated mastery rules remain unchanged.
+
