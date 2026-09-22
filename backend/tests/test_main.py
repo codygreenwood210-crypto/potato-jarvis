@@ -1323,6 +1323,39 @@ def test_universal_team_roster_and_routing_endpoints():
     assert 1 <= len(payload["agents"]) <= 12
 
 
+def test_universal_team_individual_and_mission_run(monkeypatch):
+    seen = []
+    async def fake_openai_response(input_items, **kwargs):
+        seen.append({"input": input_items, "tools": kwargs.get("tools")})
+        return {"output_text": "agent evidence" if len(seen) < 4 else "Nova synthesis", "output": []}
+    monkeypatch.setattr(main, "openai_response", fake_openai_response)
+
+    individual = client.post("/v1/agents", json={
+        "role": "Backend",
+        "task": "Review API idempotency",
+    })
+    assert individual.status_code == 200
+    assert individual.json()["role"] == "backend"
+    assert individual.json()["name"] == "Backend"
+
+    candidate = client.post("/v1/agents", json={
+        "role": "Bug Hunter",
+        "task": "Find bugs",
+    })
+    assert candidate.status_code == 400
+
+    team = client.post("/v1/team/run", json={
+        "request": "Review an API and its authorization model",
+        "roles": ["Backend", "Identity"],
+    })
+    assert team.status_code == 200
+    payload = team.json()
+    assert payload["roles"] == ["backend", "identity"]
+    assert payload["sro"] == "backend"
+    assert payload["reply"]
+    assert all(item["tools"] is None for item in seen)
+
+
 def test_chat_stream_emits_deltas_and_persists(monkeypatch):
     class FakeProvider:
         async def stream_responses(self, input_items, **kwargs):
