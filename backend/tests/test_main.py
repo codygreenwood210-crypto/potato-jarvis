@@ -1246,13 +1246,15 @@ def test_multi_agent_role_selection_and_persistence(monkeypatch):
     calls = []
     async def fake_openai_response(input_items, **kwargs):
         calls.append(str(input_items))
-        return {"output_text": "specialist result" if len(calls) < 4 else "manager synthesis", "output": []}
+        return {"output_text": "specialist result" if len(calls) < 6 else "manager synthesis", "output": []}
     monkeypatch.setattr(main, "openai_response", fake_openai_response)
     response = client.post("/v1/agent/multi", json={"request": "research the latest Android notification guidance and check security"})
     assert response.status_code == 200
     data = response.json()
-    assert "research" in data["roles"]
-    assert "security" in data["roles"]
+    assert "scout" in data["roles"]
+    assert "android" in data["roles"]
+    assert "guard" in data["roles"]
+    assert data["sro"] != "judge"
     assert data["reply"]
     run = client.get("/v1/agent/runs").json()["runs"][0]
     assert run["id"] == data["id"]
@@ -1266,8 +1268,19 @@ def test_multi_agent_requested_roles_are_bounded(monkeypatch):
         seen.append(input_items)
         return {"output_text": "ok", "output": []}
     monkeypatch.setattr(main, "openai_response", fake_openai_response)
-    response = client.post("/v1/agent/multi", json={"request": "do work", "roles": ["coding", "file", "research", "security", "vision"]})
-    assert response.status_code == 422
+    allowed = client.post("/v1/agent/multi", json={
+        "request": "do work",
+        "roles": ["coding", "file", "research", "security", "vision"],
+    })
+    assert allowed.status_code == 200
+    assert allowed.json()["roles"] == ["forge", "docs", "scout", "guard", "vision"]
+
+    too_many = client.post("/v1/agent/multi", json={
+        "request": "do work",
+        "roles": ["atlas", "archivist", "scout", "mentor", "redline", "venture", "vault",
+                  "margin", "yield", "deal", "launch", "metric", "closer"],
+    })
+    assert too_many.status_code == 422
 
 
 def test_multi_agent_specialists_cannot_execute_tools(monkeypatch):
@@ -1281,11 +1294,33 @@ def test_multi_agent_specialists_cannot_execute_tools(monkeypatch):
     assert all(toolset is None for toolset in captured)
 
 
-def test_agent_catalog_contains_specialized_roles():
+def test_agent_catalog_contains_all_certified_universal_team_roles():
     response = client.get("/v1/agents")
     assert response.status_code == 200
     roles = {item["role"] for item in response.json()["agents"]}
-    assert {"conversation", "research", "vision", "file", "planning", "coding", "memory", "automation", "security"} <= roles
+    assert len(roles) == 80
+    assert {"atlas", "judge", "archivist", "scout", "forge", "guard", "vision",
+            "gamedirector", "quill", "canon", "qa_11", "toolsmith"} <= roles
+    assert "bug_hunter" not in roles
+    assert "proof" not in roles
+
+
+def test_universal_team_roster_and_routing_endpoints():
+    roster = client.get("/v1/team/roster")
+    assert roster.status_code == 200
+    data = roster.json()
+    assert data["manager"]["name"] == "Nova"
+    assert data["manager"]["counted_as_team_seat"] is False
+    assert len(data["certified_agents"]) == 80
+    assert {item["slug"] for item in data["candidates"]} == {"bug_hunter", "proof"}
+
+    routed = client.post("/v1/team/route", json={
+        "request": "Design and test a secure Android API with database persistence",
+    })
+    assert routed.status_code == 200
+    payload = routed.json()
+    assert payload["sro"] != "judge"
+    assert 1 <= len(payload["agents"]) <= 12
 
 
 def test_chat_stream_emits_deltas_and_persists(monkeypatch):
