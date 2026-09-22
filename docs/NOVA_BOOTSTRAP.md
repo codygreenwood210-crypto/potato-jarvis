@@ -412,3 +412,12 @@ Nova private durable memory is intended to use authenticated encryption at rest,
 **Migration safety rule:** do not assume encrypted memory can be read merely because this bootstrap is available. The current runtime must have an actually authorized vault decrypt capability. Until that bridge is verified across fresh sessions, plaintext canonical recovery records must not be deleted solely because encrypted copies exist.
 
 The vault is Nova infrastructure and is independent of PNOS.
+
+## Universal Team executable agents — CURRENT
+
+Load `docs/NOVA_UNIVERSAL_AGENT_RUNTIME.md` for the executable Universal Team architecture.
+
+The 80 certified primary operators are implemented as bounded runtime specialists under Nova's control. Nova routes work, assigns/uses a Single Responsible Owner, gathers specialist reports and remains the single outward manager voice. Specialist runtime existence does not grant independent authority or certify mastery. Judge independence and all Trust Core/permission rules remain controlling.
+
+Candidate roles such as Bug Hunter and Proof are not certified/routable as primary operators until their separate admission gates pass.
+
