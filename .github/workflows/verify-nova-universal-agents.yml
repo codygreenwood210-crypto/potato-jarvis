@@ -1,0 +1,42 @@
+name: Verify Nova Universal Team Agents
+
+on:
+  push:
+    branches:
+      - potato-v5.8-final
+    paths:
+      - "backend/universal_agents.py"
+      - "backend/main.py"
+      - "backend/tests/test_universal_agents.py"
+      - "backend/tests/test_main.py"
+      - ".github/workflows/verify-nova-universal-agents.yml"
+  pull_request:
+    paths:
+      - "backend/universal_agents.py"
+      - "backend/main.py"
+      - "backend/tests/test_universal_agents.py"
+      - "backend/tests/test_main.py"
+      - ".github/workflows/verify-nova-universal-agents.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  universal-team:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements.txt
+      - name: Compile agent runtime
+        run: python -m py_compile backend/universal_agents.py backend/main.py
+      - name: Verify 80-agent registry and router
+        run: python -m pytest backend/tests/test_universal_agents.py -q
+      - name: Verify Nova team API and orchestration regressions
+        run: python -m pytest backend/tests/test_main.py -q -k "multi_agent or universal_team or agent_catalog"
