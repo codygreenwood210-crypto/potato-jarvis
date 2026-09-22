@@ -1537,6 +1537,19 @@ for slug, spec in CANDIDATES.items():
         key = re.sub(r"[^a-z0-9]+", "_", alias.lower()).strip("_")
         _ALIAS_TO_SLUG[key] = slug
 
+# Backwards-compatible names from the earlier generic-agent API.
+# These are aliases only; they do not create extra team seats.
+_ALIAS_TO_SLUG.update({
+    "conversation": "atlas",
+    "research": "scout",
+    "file": "docs",
+    "planning": "atlas",
+    "coding": "forge",
+    "memory": "archivist",
+    "automation": "automate",
+    "security": "guard",
+})
+
 
 def normalize_identifier(value: str, *, allow_candidates: bool = False) -> str:
     key = re.sub(r"[^a-z0-9]+", "_", str(value).lower()).strip("_")
