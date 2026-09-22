@@ -489,3 +489,16 @@ Important:
 Existing canonical plaintext memories have **not** been migrated or deleted. Local user-machine key initialization has not been evidenced yet. Do not remove plaintext canonical recovery records until a fresh Nova runtime has a verified authorized decrypt bridge and recovery has been tested.
 
 Encrypting current files does not erase historical plaintext from earlier Git commits; history rewriting is a separate consequential operation.
+
+## Universal Team agent runtime — 2026-09-22
+
+Status: **IMPLEMENTED / BACKEND REGRESSION VERIFIED**
+
+Canonical design: `docs/NOVA_UNIVERSAL_AGENT_RUNTIME.md`  
+Registry/router: `backend/universal_agents.py`  
+Integration: `backend/main.py`
+
+All 80 certified primary operators are represented as invokable bounded agents under Nova orchestration. Nova is manager/controller and is not counted as a specialist seat. Mission pods are bounded, one SRO is selected, specialist outputs are advisory, and all real tool execution/permissions/persistent mutation remain behind Nova/application authorization controls.
+
+Bug Hunter and Proof remain candidates and are deliberately excluded from certified routing until admission evidence passes the governing Judge process.
+
