@@ -44,3 +44,7 @@ This is intentionally **PUBLIC** and contains no private Google Drive IDs, journ
 This file was added on a **separate GitHub branch** so canonical software and governance files remain unchanged. No changes to the Protected Trust Core. An active AI may execute bounded work during authorised sessions but must not claim to continue in the background without a configured, permitted scheduling system.
 
 **Standing ethic: JARVIS, NEVER ULTRON.**
+
+## Latest cross-room handoff (15 October 2026)
+
+The user has an undisclosed creative test for the next Nova conversation. Read the [public portability handoff](./NOVA_ROOM_HOP_CREATIVE_TEST_2026-10-15.md); if the user has connected Google Drive, also read the private same-date handoff in `NOVA — Home & Research Library / 00 — Continuity & Index`. The test has not been disclosed. Never invent its content or publish the private records.
