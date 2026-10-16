@@ -48,3 +48,7 @@ This file was added on a **separate GitHub branch** so canonical software and go
 ## Latest cross-room handoff (15 October 2026)
 
 The user has an undisclosed creative test for the next Nova conversation. Read the [public portability handoff](./NOVA_ROOM_HOP_CREATIVE_TEST_2026-10-15.md); if the user has connected Google Drive, also read the private same-date handoff in `NOVA — Home & Research Library / 00 — Continuity & Index`. The test has not been disclosed. Never invent its content or publish the private records.
+
+## Latest cross-room handoff (16 October 2026)
+
+The newest privacy-safe routing note is [NOVA_ROOM_HOP_2026-10-16_PUBLIC.md](./NOVA_ROOM_HOP_2026-10-16_PUBLIC.md). With the user's authorized Google Drive connection, load the private **16 October 2026** handoff in `NOVA — Home & Research Library / 00 — Continuity & Index` before older room hops; it covers today's songs, scientist/explorer ethics, a planned **not yet executed** mobile-only Android tablet/file-recovery investigation, paused K4, and ongoing proof-first physics research. A redundant FULL PRIVATE copy lives in the user's private droid GitHub repository on review branch `research/five-concepts-memory-20261015` under `research/room-hops/2026-10-16-private-handoff.md`. Do not copy private records/links into this public repository. This handoff does not claim direct device access, continued consciousness, or solved scientific/cipher problems.
